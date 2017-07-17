@@ -6,9 +6,19 @@ import {ShaderBuilder, ShaderModule, ShaderProgram} from 'neuroglancer/webgl/sha
 import {getSquareCornersBuffer} from 'neuroglancer/webgl/square_corners_buffer';
 
 /**
- * Helper for rendering a SliceView that has been pre-rendered to a texture.
+ * In neuroglancer's SliceViewRenderHelper the shader is built in constructor. So it is not feasible to extend or monkey-patch it. 
+ * Therefore the fork of the whole SliceViewRenderHelper class is needed to change it.
+ * 
+ * This class is a copy of SliceViewRenderHelper from https://github.com/google/neuroglancer/blob/9c78cd512a722f3fe9ed097155b6f64f48b8d1c9/src/neuroglancer/sliceview/frontend.ts 
+ * Copied on 17.07.2017 (neuroglancer master commit 9c78cd512a722f3fe9ed097155b6f64f48b8d1c9) and renamed.
+ * Any changes in upstream version since then must be manually applied here with care.
+ * 
+ * Adds the ability to remove background from slice by discarding pixels with color greater, less or equal to the specified 'discardColor'
+ * 
+ * Original neuroglancer description:
+ * 	"Helper for rendering a SliceView that has been pre-rendered to a texture."
  */
-export class SliceViewRenderHelper extends RefCounted {
+export class NehubaSliceViewRenderHelper extends RefCounted {
   private copyVertexPositionsBuffer = getSquareCornersBuffer(this.gl);
   private shader: ShaderProgram;
 
@@ -69,7 +79,7 @@ gl_Position = uProjectionMatrix * aVertexPosition;
 
   static get(gl: GL, emitter: ShaderModule) {
     return gl.memoize.get(
-        `sliceview/SliceViewRenderHelper:${getObjectId(emitter)}`,
-        () => new SliceViewRenderHelper(gl, emitter));
+        `nehuba/NehubaSliceViewRenderHelper:${getObjectId(emitter)}`,
+        () => new NehubaSliceViewRenderHelper(gl, emitter));
   }
 }
