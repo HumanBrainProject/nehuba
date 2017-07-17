@@ -1,0 +1,19 @@
+{
+  "name": "nehuba",
+  "description": "Neuroglancer for Human Brain Atlas",
+  "version": "0.0.0-alpha.0",
+  "main": "./src/nehuba/main.ts",
+  "author": "Pavel Chervakov",
+  "license": "",
+  "private": true,
+  "scripts": {
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HumanBrainProject/nehuba.git"
+  },
+  "bugs": {
+    "url": "https://github.com/HumanBrainProject/nehuba/issues"
+  },
+  "homepage": "https://github.com/HumanBrainProject/nehuba#readme"
+}
