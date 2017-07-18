@@ -128,17 +128,13 @@ export class TransparentPlaneRenderHelper extends RefCounted {
     // builder.addUniform('vec4', 'uBackgroundColor');
     builder.addUniform('mat4', 'uProjectionMatrix');
     // builder.addUniform('vec4', 'uTextureCoordinateAdjustment');
+    builder.addUniform('vec4', 'uColor');
     builder.require(emitter);
     builder.setFragmentMain(`
-vec4 sampledColor = texture2D(uSampler, vTexCoord);
-if (sampledColor.a == 0.0) {
-  sampledColor = uBackgroundColor;
-}
-emit(sampledColor * uColorFactor, vec4(0,0,0,0));
+emit(uColor, vec4(0.0));
 `);
     builder.addAttribute('vec4', 'aVertexPosition');
     builder.setVertexMain(`
-vTexCoord = uTextureCoordinateAdjustment.xy + 0.5 * (aVertexPosition.xy + 1.0) * uTextureCoordinateAdjustment.zw;
 gl_Position = uProjectionMatrix * aVertexPosition;
 `);
     this.shader = this.registerDisposer(builder.build());
@@ -146,7 +142,7 @@ gl_Position = uProjectionMatrix * aVertexPosition;
 
   draw(
       /* texture: WebGLTexture|null,  */projectionMatrix: mat4//, colorFactor: vec4, backgroundColor: vec4,
-      /* xStart: number, yStart: number, xEnd: number, yEnd: number */) {
+      /* xStart: number, yStart: number, xEnd: number, yEnd: number */, color: vec4) {
     let {gl, shader/* , textureCoordinateAdjustment */} = this;
     // textureCoordinateAdjustment[0] = xStart;
     // textureCoordinateAdjustment[1] = yStart;
@@ -159,6 +155,7 @@ gl_Position = uProjectionMatrix * aVertexPosition;
     // gl.uniform4fv(shader.uniform('uColorFactor'), colorFactor);
     // gl.uniform4fv(shader.uniform('uBackgroundColor'), backgroundColor);
     // gl.uniform4fv(shader.uniform('uTextureCoordinateAdjustment'), textureCoordinateAdjustment);
+    gl.uniform4fv(shader.uniform('uColor'), color);
 
     let aVertexPosition = shader.attribute('aVertexPosition');
     this.copyVertexPositionsBuffer.bindToVertexAttrib(aVertexPosition, /*components=*/2);
