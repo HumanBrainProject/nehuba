@@ -26,7 +26,7 @@ export class NehubaSliceViewRenderHelper extends RefCounted {
 
   private textureCoordinateAdjustment = new Float32Array(4);
 
-  discardColor = vec4.fromValues(0.5, 0.5, 0.5, 1);
+  private discardColor = vec4.fromValues(0.5, 0.5, 0.5, 1);
 
   constructor(public gl: GL, emitter: ShaderModule, mode: removeBackgroundMode) {
     super();
@@ -90,6 +90,11 @@ gl_Position = uProjectionMatrix * aVertexPosition;
 
     gl.disableVertexAttribArray(aVertexPosition);
     gl.bindTexture(gl.TEXTURE_2D, null);
+  }
+
+  /** Sets discardColor. Pixels with color greater, less or equal (depending on 'mode' in constructor) to discardColor will be discarded. */
+  setDiscardColor(color: vec4) {
+    this.discardColor = color;
   }
 
   static get(gl: GL, emitter: ShaderModule, mode: removeBackgroundMode) {
