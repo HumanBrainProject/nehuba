@@ -142,7 +142,7 @@ gl_Position = uProjectionMatrix * aVertexPosition;
 
   draw(
       /* texture: WebGLTexture|null,  */projectionMatrix: mat4//, colorFactor: vec4, backgroundColor: vec4,
-      /* xStart: number, yStart: number, xEnd: number, yEnd: number */, color: vec4) {
+      /* xStart: number, yStart: number, xEnd: number, yEnd: number */, color: vec4, zoffset: {factor: number, units: number}) {
     let {gl, shader/* , textureCoordinateAdjustment */} = this;
     // textureCoordinateAdjustment[0] = xStart;
     // textureCoordinateAdjustment[1] = yStart;
@@ -160,7 +160,16 @@ gl_Position = uProjectionMatrix * aVertexPosition;
     let aVertexPosition = shader.attribute('aVertexPosition');
     this.copyVertexPositionsBuffer.bindToVertexAttrib(aVertexPosition, /*components=*/2);
 
+    gl.enable(gl.POLYGON_OFFSET_FILL);
+    gl.polygonOffset(zoffset.factor, zoffset.units);
+    gl.depthMask(false);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+    gl.disable(gl.BLEND);
+    gl.depthMask(true);
+    gl.polygonOffset(0.0, 0.0);
+    gl.disable(gl.POLYGON_OFFSET_FILL);
 
     gl.disableVertexAttribArray(aVertexPosition);
     // gl.bindTexture(gl.TEXTURE_2D, null);
