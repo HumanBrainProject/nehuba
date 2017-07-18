@@ -114,20 +114,10 @@ export class TransparentPlaneRenderHelper extends RefCounted {
   private copyVertexPositionsBuffer = getSquareCornersBuffer(this.gl);
   private shader: ShaderProgram;
 
-  // private textureCoordinateAdjustment = new Float32Array(4);
-
   constructor(public gl: GL, emitter: ShaderModule) {
     super();
     let builder = new ShaderBuilder(gl);
-    // builder.addVarying('vec2', 'vTexCoord');
-    // builder.addUniform('sampler2D', 'uSampler');
-    // builder.addInitializer(shader => {
-    //   gl.uniform1i(shader.uniform('uSampler'), 0);
-    // });
-    // builder.addUniform('vec4', 'uColorFactor');
-    // builder.addUniform('vec4', 'uBackgroundColor');
     builder.addUniform('mat4', 'uProjectionMatrix');
-    // builder.addUniform('vec4', 'uTextureCoordinateAdjustment');
     builder.addUniform('vec4', 'uColor');
     builder.require(emitter);
     builder.setFragmentMain(`
@@ -140,21 +130,10 @@ gl_Position = uProjectionMatrix * aVertexPosition;
     this.shader = this.registerDisposer(builder.build());
   }
 
-  draw(
-      /* texture: WebGLTexture|null,  */projectionMatrix: mat4//, colorFactor: vec4, backgroundColor: vec4,
-      /* xStart: number, yStart: number, xEnd: number, yEnd: number */, color: vec4, zoffset?: {factor: number, units: number}) {
-    let {gl, shader/* , textureCoordinateAdjustment */} = this;
-    // textureCoordinateAdjustment[0] = xStart;
-    // textureCoordinateAdjustment[1] = yStart;
-    // textureCoordinateAdjustment[2] = xEnd - xStart;
-    // textureCoordinateAdjustment[3] = yEnd - yStart;
+  draw(projectionMatrix: mat4, color: vec4, zoffset?: {factor: number, units: number}) {
+    let {gl, shader} = this;
     shader.bind();
-    // gl.activeTexture(gl.TEXTURE0);
-    // gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.uniformMatrix4fv(shader.uniform('uProjectionMatrix'), false, projectionMatrix);
-    // gl.uniform4fv(shader.uniform('uColorFactor'), colorFactor);
-    // gl.uniform4fv(shader.uniform('uBackgroundColor'), backgroundColor);
-    // gl.uniform4fv(shader.uniform('uTextureCoordinateAdjustment'), textureCoordinateAdjustment);
     gl.uniform4fv(shader.uniform('uColor'), color);
 
     let aVertexPosition = shader.attribute('aVertexPosition');
@@ -174,7 +153,6 @@ gl_Position = uProjectionMatrix * aVertexPosition;
     gl.disable(gl.POLYGON_OFFSET_FILL);
 
     gl.disableVertexAttribArray(aVertexPosition);
-    // gl.bindTexture(gl.TEXTURE_2D, null);
   }
 
   static get(gl: GL, emitter: ShaderModule) {
