@@ -110,24 +110,24 @@ gl_Position = uProjectionMatrix * aVertexPosition;
 /**
  * Helper for rendering a SliceView that has been pre-rendered to a texture.
  */
-export class SliceViewRenderHelper extends RefCounted {
+export class TransparentPlaneRenderHelper extends RefCounted {
   private copyVertexPositionsBuffer = getSquareCornersBuffer(this.gl);
   private shader: ShaderProgram;
 
-  private textureCoordinateAdjustment = new Float32Array(4);
+  // private textureCoordinateAdjustment = new Float32Array(4);
 
   constructor(public gl: GL, emitter: ShaderModule) {
     super();
     let builder = new ShaderBuilder(gl);
-    builder.addVarying('vec2', 'vTexCoord');
-    builder.addUniform('sampler2D', 'uSampler');
-    builder.addInitializer(shader => {
-      gl.uniform1i(shader.uniform('uSampler'), 0);
-    });
-    builder.addUniform('vec4', 'uColorFactor');
-    builder.addUniform('vec4', 'uBackgroundColor');
+    // builder.addVarying('vec2', 'vTexCoord');
+    // builder.addUniform('sampler2D', 'uSampler');
+    // builder.addInitializer(shader => {
+    //   gl.uniform1i(shader.uniform('uSampler'), 0);
+    // });
+    // builder.addUniform('vec4', 'uColorFactor');
+    // builder.addUniform('vec4', 'uBackgroundColor');
     builder.addUniform('mat4', 'uProjectionMatrix');
-    builder.addUniform('vec4', 'uTextureCoordinateAdjustment');
+    // builder.addUniform('vec4', 'uTextureCoordinateAdjustment');
     builder.require(emitter);
     builder.setFragmentMain(`
 vec4 sampledColor = texture2D(uSampler, vTexCoord);
@@ -145,20 +145,20 @@ gl_Position = uProjectionMatrix * aVertexPosition;
   }
 
   draw(
-      texture: WebGLTexture|null, projectionMatrix: mat4, colorFactor: vec4, backgroundColor: vec4,
-      xStart: number, yStart: number, xEnd: number, yEnd: number) {
-    let {gl, shader, textureCoordinateAdjustment} = this;
-    textureCoordinateAdjustment[0] = xStart;
-    textureCoordinateAdjustment[1] = yStart;
-    textureCoordinateAdjustment[2] = xEnd - xStart;
-    textureCoordinateAdjustment[3] = yEnd - yStart;
+      /* texture: WebGLTexture|null,  */projectionMatrix: mat4//, colorFactor: vec4, backgroundColor: vec4,
+      /* xStart: number, yStart: number, xEnd: number, yEnd: number */) {
+    let {gl, shader/* , textureCoordinateAdjustment */} = this;
+    // textureCoordinateAdjustment[0] = xStart;
+    // textureCoordinateAdjustment[1] = yStart;
+    // textureCoordinateAdjustment[2] = xEnd - xStart;
+    // textureCoordinateAdjustment[3] = yEnd - yStart;
     shader.bind();
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
+    // gl.activeTexture(gl.TEXTURE0);
+    // gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.uniformMatrix4fv(shader.uniform('uProjectionMatrix'), false, projectionMatrix);
-    gl.uniform4fv(shader.uniform('uColorFactor'), colorFactor);
-    gl.uniform4fv(shader.uniform('uBackgroundColor'), backgroundColor);
-    gl.uniform4fv(shader.uniform('uTextureCoordinateAdjustment'), textureCoordinateAdjustment);
+    // gl.uniform4fv(shader.uniform('uColorFactor'), colorFactor);
+    // gl.uniform4fv(shader.uniform('uBackgroundColor'), backgroundColor);
+    // gl.uniform4fv(shader.uniform('uTextureCoordinateAdjustment'), textureCoordinateAdjustment);
 
     let aVertexPosition = shader.attribute('aVertexPosition');
     this.copyVertexPositionsBuffer.bindToVertexAttrib(aVertexPosition, /*components=*/2);
@@ -166,12 +166,12 @@ gl_Position = uProjectionMatrix * aVertexPosition;
     gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
 
     gl.disableVertexAttribArray(aVertexPosition);
-    gl.bindTexture(gl.TEXTURE_2D, null);
+    // gl.bindTexture(gl.TEXTURE_2D, null);
   }
 
   static get(gl: GL, emitter: ShaderModule) {
     return gl.memoize.get(
-        `sliceview/SliceViewRenderHelper:${getObjectId(emitter)}`,
-        () => new SliceViewRenderHelper(gl, emitter));
+        `nehuba/TransparentPlaneRenderHelper:${getObjectId(emitter)}`,
+        () => new TransparentPlaneRenderHelper(gl, emitter));
   }
 }
