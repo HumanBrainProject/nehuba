@@ -16,7 +16,7 @@ import { removeBackgroundMode } from "shuba/config";
  * Latest commit to frontend.ts 736b20335d4349d8a252bd37e33d343cb73294de on May 21, 2017 "feat: Add Viewer-level prefetching support."
  * Any changes in upstream version since then must be manually applied here with care.
  * 
- * Adds the ability to remove background from slice by discarding pixels with color greater, less or equal to the specified 'discardColor'
+ * Adds the ability to remove background from slice by discarding pixels with color greater, less or equal to the specified {discardColor}
  * 
  * Original neuroglancer description:
  * 	"Helper for rendering a SliceView that has been pre-rendered to a texture."
@@ -93,7 +93,9 @@ gl_Position = uProjectionMatrix * aVertexPosition;
     gl.bindTexture(gl.TEXTURE_2D, null);
   }
 
-  /** Sets discardColor. Pixels with color greater, less or equal (depending on 'mode' in constructor) to discardColor will be discarded. */
+  /** To be called before {@link NehubaSliceViewRenderHelper#draw} to set {discardColor}
+   *  Pixels with color greater, less or equal (depending on {mode} in constructor) to {discardColor} will be discarded. 
+   *  Separate method to keep {@link NehubaSliceViewRenderHelper#draw} signature compatible with original {@link SliceViewRenderHelper}. */
   setDiscardColor(color: vec4) {
     this.discardColor = color;
   }
