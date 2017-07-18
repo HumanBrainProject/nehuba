@@ -108,7 +108,7 @@ gl_Position = uProjectionMatrix * aVertexPosition;
 }
 
 /**
- * Helper for rendering a SliceView that has been pre-rendered to a texture.
+ * Helper for rendering a transparent plane with z offset.
  */
 export class TransparentPlaneRenderHelper extends RefCounted {
   private copyVertexPositionsBuffer = getSquareCornersBuffer(this.gl);
@@ -142,7 +142,7 @@ gl_Position = uProjectionMatrix * aVertexPosition;
 
   draw(
       /* texture: WebGLTexture|null,  */projectionMatrix: mat4//, colorFactor: vec4, backgroundColor: vec4,
-      /* xStart: number, yStart: number, xEnd: number, yEnd: number */, color: vec4, zoffset: {factor: number, units: number}) {
+      /* xStart: number, yStart: number, xEnd: number, yEnd: number */, color: vec4, zoffset?: {factor: number, units: number}) {
     let {gl, shader/* , textureCoordinateAdjustment */} = this;
     // textureCoordinateAdjustment[0] = xStart;
     // textureCoordinateAdjustment[1] = yStart;
@@ -160,8 +160,10 @@ gl_Position = uProjectionMatrix * aVertexPosition;
     let aVertexPosition = shader.attribute('aVertexPosition');
     this.copyVertexPositionsBuffer.bindToVertexAttrib(aVertexPosition, /*components=*/2);
 
-    gl.enable(gl.POLYGON_OFFSET_FILL);
-    gl.polygonOffset(zoffset.factor, zoffset.units);
+    if (zoffset) {
+      gl.enable(gl.POLYGON_OFFSET_FILL);
+      gl.polygonOffset(zoffset.factor, zoffset.units);
+    }
     gl.depthMask(false);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
