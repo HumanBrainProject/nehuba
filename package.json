@@ -6,8 +6,7 @@
   "author": "Pavel Chervakov",
   "license": "",
   "private": true,
-  "scripts": {
-  },
+  "scripts": {},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/HumanBrainProject/nehuba.git"
