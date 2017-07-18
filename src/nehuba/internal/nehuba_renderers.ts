@@ -13,6 +13,7 @@ import { removeBackgroundMode } from "shuba/config";
  * 
  * This class is a copy of SliceViewRenderHelper from https://github.com/google/neuroglancer/blob/9c78cd512a722f3fe9ed097155b6f64f48b8d1c9/src/neuroglancer/sliceview/frontend.ts 
  * Copied on 17.07.2017 (neuroglancer master commit 9c78cd512a722f3fe9ed097155b6f64f48b8d1c9) and renamed.
+ * Latest commit to frontend.ts 736b20335d4349d8a252bd37e33d343cb73294de on May 21, 2017 "feat: Add Viewer-level prefetching support."
  * Any changes in upstream version since then must be manually applied here with care.
  * 
  * Adds the ability to remove background from slice by discarding pixels with color greater, less or equal to the specified 'discardColor'
