@@ -17,10 +17,31 @@ import { restrictUserNavigation } from "shuba/hooks";
 import { Config } from "shuba/config";
 
 /**
+ * This function started as a copy of makeSliceView from https://github.com/google/neuroglancer/blob/9c78cd512a722f3fe9ed097155b6f64f48b8d1c9/src/neuroglancer/viewer_layouts.ts
+ * Copied on 19.07.2017 (neuroglancer master commit 9c78cd512a722f3fe9ed097155b6f64f48b8d1c9) and renamed.
+ * Latest commit to viewer_layouts.ts 736b20335d4349d8a252bd37e33d343cb73294de on May 21, 2017 "feat: Add Viewer-level prefetching support."
+ * Any changes in upstream version since then must be manually applied here with care.
+ */
+export function makeSliceView(viewerState: SliceViewViewerState, baseToSelf?: quat) {
+  let navigationState: NavigationState;
+  if (baseToSelf === undefined) {
+    navigationState = viewerState.navigationState;
+  } else {
+    navigationState = new NavigationState(
+        new Pose(
+            viewerState.navigationState.pose.position,
+            OrientationState.makeRelative(
+                viewerState.navigationState.pose.orientation, baseToSelf)),
+        viewerState.navigationState.zoomFactor);
+  }
+  return new SliceView(viewerState.chunkManager, viewerState.layerManager, navigationState);
+}
+
+/**
  * In neuroglancer's FourPanelLayout all the work is done in constructor. So it is not feasible to extend or monkey-patch it. 
  * Therefore the fork of the whole FourPanelLayout class is needed to change it.
  * 
- * Copied from https://github.com/google/neuroglancer/blob/9c78cd512a722f3fe9ed097155b6f64f48b8d1c9/src/neuroglancer/viewer_layouts.ts
+ * This class started as a copy of FourPanelLayout from https://github.com/google/neuroglancer/blob/9c78cd512a722f3fe9ed097155b6f64f48b8d1c9/src/neuroglancer/viewer_layouts.ts
  * Copied on 19.07.2017 (neuroglancer master commit 9c78cd512a722f3fe9ed097155b6f64f48b8d1c9) and renamed.
  * Latest commit to viewer_layouts.ts 736b20335d4349d8a252bd37e33d343cb73294de on May 21, 2017 "feat: Add Viewer-level prefetching support."
  * Any changes in upstream version since then must be manually applied here with care.
