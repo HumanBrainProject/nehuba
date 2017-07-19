@@ -16,13 +16,13 @@ import { NehubaPerspectivePanel } from "shuba/internal/nehuba_perspective_panel"
 import { restrictUserNavigation } from "shuba/hooks";
 import { Config } from "shuba/config";
 
+const sliceQuat = Symbol('SliceQuat');
 /**
  * This function started as a copy of makeSliceView from https://github.com/google/neuroglancer/blob/9c78cd512a722f3fe9ed097155b6f64f48b8d1c9/src/neuroglancer/viewer_layouts.ts
  * Copied on 19.07.2017 (neuroglancer master commit 9c78cd512a722f3fe9ed097155b6f64f48b8d1c9) and renamed.
  * Latest commit to viewer_layouts.ts 736b20335d4349d8a252bd37e33d343cb73294de on May 21, 2017 "feat: Add Viewer-level prefetching support."
  * Any changes in upstream version since then must be manually applied here with care.
  */
-const sliceQuat = Symbol('SliceQuat');
 function makeSliceViewNhb(viewerState: SliceViewViewerState, baseToSelf?: quat, customZoom?: number) {
   let navigationState: NavigationState;
   if (baseToSelf === undefined) {
@@ -38,6 +38,13 @@ function makeSliceViewNhb(viewerState: SliceViewViewerState, baseToSelf?: quat, 
   const slice =  new SliceView(viewerState.chunkManager, viewerState.layerManager, navigationState);
   (<any>slice)[sliceQuat] = baseToSelf || quat.create();
   return slice;
+}
+
+function makeFixedZoomSlicesFromSlices(sliceViews: SliceView[], viewerState: SliceViewViewerState, customZoom: number) {
+  return sliceViews.map(slice => {
+    const q: quat = (<any>slice)[sliceQuat];
+    return makeSliceViewNhb(viewerState, q, customZoom);
+  })
 }
 
 export const configSymbol = Symbol('config');
@@ -88,7 +95,38 @@ export class NehubaLayout extends RefCounted {
     }
     const views = layoutConfig.views;
     const quats = [views.slice1, views.slice2, views.slice3];
-    let sliceViews = quats.map(q => { return makeSliceViewNhb(viewer, q); });
+	 let sliceViews = quats.map(q => { return makeSliceViewNhb(viewer, q); });
+
+    const makePerspective: L.Handler = element => {
+      element.className = 'gllayoutcell noselect';
+
+      if (layoutConfig.useNehubaPerspective) {
+        const conf = layoutConfig.useNehubaPerspective;
+        let perspectivePanel = this.registerDisposer(
+            new NehubaPerspectivePanel(display, element, perspectiveViewerState, config));
+        
+        sliceViews.forEach(slice => { perspectivePanel.planarSlices.add(slice.addRef()); })
+        if (conf.fixedZoomPerspectiveSlices) {
+          const cnfg = conf.fixedZoomPerspectiveSlices;
+          makeFixedZoomSlicesFromSlices(sliceViews, viewer, cnfg.sliceZoom).forEach(slice => {
+            const m = cnfg.sliceViewportSizeMultiplier;
+            slice.setViewportSize(cnfg.sliceViewportWidth * m, cnfg.sliceViewportHeight * m);
+            perspectivePanel.sliceViews.add(slice);
+          })
+        } else {
+          for (let sliceView of sliceViews) {
+            perspectivePanel.sliceViews.add(sliceView.addRef());
+          }
+        }
+      } else {
+        let perspectivePanel = this.registerDisposer(
+            new PerspectivePanel(display, element, perspectiveViewerState));
+        for (let sliceView of sliceViews) {
+          perspectivePanel.sliceViews.add(sliceView.addRef());
+        }              
+      }
+    };
+	 
     let {display} = viewer;
 
     const perspectiveViewerState = {
@@ -125,16 +163,9 @@ export class NehubaLayout extends RefCounted {
         L.withFlex(1, L.box('row', [
           L.withFlex(1, element => {
             element.className = 'gllayoutcell noselect';
-            let perspectivePanel = this.registerDisposer(
-                new PerspectivePanel(display, element, perspectiveViewerState));
-            for (let sliceView of sliceViews) {
-              perspectivePanel.sliceViews.add(sliceView.addRef());
-            }
-          }),
-          L.withFlex(1, element => {
-            element.className = 'gllayoutcell noselect';
             this.registerDisposer(configureSliceViewPanel(new SliceViewPanel(display, element, sliceViews[2], sliceViewerStateWithoutScaleBar)));
-          })
+			 }),
+			 L.withFlex(1, makePerspective)
         ])),
       ]))
     ];
