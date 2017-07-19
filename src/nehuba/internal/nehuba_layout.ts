@@ -22,7 +22,8 @@ import { Config } from "shuba/config";
  * Latest commit to viewer_layouts.ts 736b20335d4349d8a252bd37e33d343cb73294de on May 21, 2017 "feat: Add Viewer-level prefetching support."
  * Any changes in upstream version since then must be manually applied here with care.
  */
-export function makeSliceView(viewerState: SliceViewViewerState, baseToSelf?: quat) {
+const sliceQuat = Symbol('SliceQuat');
+function makeSliceViewNhb(viewerState: SliceViewViewerState, baseToSelf?: quat, customZoom?: number) {
   let navigationState: NavigationState;
   if (baseToSelf === undefined) {
     navigationState = viewerState.navigationState;
@@ -32,9 +33,11 @@ export function makeSliceView(viewerState: SliceViewViewerState, baseToSelf?: qu
             viewerState.navigationState.pose.position,
             OrientationState.makeRelative(
                 viewerState.navigationState.pose.orientation, baseToSelf)),
-        viewerState.navigationState.zoomFactor);
+        customZoom || viewerState.navigationState.zoomFactor);
   }
-  return new SliceView(viewerState.chunkManager, viewerState.layerManager, navigationState);
+  const slice =  new SliceView(viewerState.chunkManager, viewerState.layerManager, navigationState);
+  (<any>slice)[sliceQuat] = baseToSelf || quat.create();
+  return slice;
 }
 
 /**
