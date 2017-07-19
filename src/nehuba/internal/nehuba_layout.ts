@@ -111,3 +111,42 @@ export class NehubaLayout extends RefCounted {
     super.disposed();
   }
 }
+
+// ****** !!! Needs attention !!! ******  Even so the change is minimal - the code is forked/copy-pasted from NG and needs to be updated if changed upstream.
+// The startDragViewport function is copied from https://github.com/google/neuroglancer/blob/9c78cd512a722f3fe9ed097155b6f64f48b8d1c9/src/neuroglancer/sliceview/panel.ts
+// Copied on 19.07.2017 (neuroglancer master commit 9c78cd512a722f3fe9ed097155b6f64f48b8d1c9).
+// Latest commit to panel.ts 3d08828cc337dce1e9bba454f0ef00073697b2e0 on Jun 6, 2017 " fix: make SliceViewPanel and PerspectivePanel resize handling more ro…"
+// Any changes in upstream version since then must be manually applied here with care.
+function disableFixedPointInRotation(slice: SliceViewPanel, config: Config) {
+	slice.startDragViewport = function (this: SliceViewPanel, e: MouseEvent) {
+    let {mouseState} = this.viewer;
+    if (mouseState.updateUnconditionally()) {
+      let initialPosition = vec3.clone(mouseState.position);
+      startRelativeMouseDrag(e, (event, deltaX, deltaY) => {
+        let {position} = this.viewer.navigationState;
+        if (event.shiftKey) {
+          let {viewportAxes} = this.sliceView;
+          this.viewer.navigationState.pose.rotateAbsolute(
+              viewportAxes[1], deltaX / 4.0 * Math.PI / 180.0, initialPosition);
+          this.viewer.navigationState.pose.rotateAbsolute(
+              viewportAxes[0], deltaY / 4.0 * Math.PI / 180.0, initialPosition);
+        } else {
+          let pos = position.spatialCoordinates;
+          vec3.set(pos, deltaX, deltaY, 0);
+          vec3.transformMat4(pos, pos, this.sliceView.viewportToData);
+          position.changed.dispatch();
+        }
+      });
+    }
+	};
+
+  return slice;
+}
+/*
+function patchSliceView(slice: SliceViewPanel) {
+  let untyped = slice as any;
+  untyped.unregisterDisposer(untyped.sliceViewRenderHelper);
+  untyped.registerDisposer(untyped.sliceViewRenderHelper = NehubaSliceViewRenderHelper.get(untyped.gl, sliceViewPanelEmitColor))
+  return slice;
+}
+*/
