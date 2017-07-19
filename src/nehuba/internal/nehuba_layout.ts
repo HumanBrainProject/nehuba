@@ -13,7 +13,7 @@ import { Viewer } from 'neuroglancer/viewer';
 import { startRelativeMouseDrag } from 'neuroglancer/util/mouse_drag';
 
 import { NehubaPerspectivePanel } from "nehuba/internal/nehuba_perspective_panel";
-import { restrictUserNavigation } from "shuba/hooks";
+import { restrictUserNavigation } from "nehuba/internal/hooks";
 import { Config } from "shuba/config";
 
 const sliceQuat = Symbol('SliceQuat');
