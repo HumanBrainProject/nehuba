@@ -40,6 +40,8 @@ function makeSliceViewNhb(viewerState: SliceViewViewerState, baseToSelf?: quat, 
   return slice;
 }
 
+export const configSymbol = Symbol('config');
+
 /**
  * In neuroglancer's FourPanelLayout all the work is done in constructor. So it is not feasible to extend or monkey-patch it. 
  * Therefore the fork of the whole FourPanelLayout class is needed to change it.
@@ -53,14 +55,48 @@ export class NehubaLayout extends RefCounted {
   constructor(public rootElement: HTMLElement, public viewer: ViewerUIState) {
     super();
 
-    let sliceViews = makeOrthogonalSliceViews(viewer);
+    const config: Config = (viewer.display.container as any)[configSymbol];
+    if (!config) throw new Error('Are you trying to use nehuba classes directly? Use should use defined API instead');
+    const layoutConfig = config.layout || {};
+
+    layoutConfig.useNehubaPerspective && !layoutConfig.useNehubaPerspective.doNotRestrictUserNavigation && restrictUserNavigation(viewer as Viewer);
+
+    const bg = layoutConfig.planarSlicesBackground || (config.dataset && config.dataset.imageBackground);
+    const changeBackground = (slice: SliceViewPanel) => {
+      bg && (slice['backgroundColor'] = bg);
+      return slice;
+    }
+    const configureSliceViewPanel = (slice: SliceViewPanel) => {
+      disableFixedPointInRotation(changeBackground(slice), config);
+      return slice;
+    }
+
+    if (!layoutConfig.views) {
+      layoutConfig.views = 'HBP'; // TODO should use neuroglaner quats by default
+      // = { //Default neuroglancer quats
+      //   slice1: quat.create(),
+      //   slice2: quat.rotateX(quat.create(), quat.create(), Math.PI / 2),
+      //   slice3: quat.rotateY(quat.create(), quat.create(), Math.PI / 2)
+      // }
+    }
+    if (layoutConfig.views === 'HBP') {
+      layoutConfig.views = {
+        slice1: quat.rotateX(quat.create(), quat.create(), -Math.PI / 2),
+        slice2: quat.rotateY(quat.create(), quat.rotateX(quat.create(), quat.create(), -Math.PI / 2), -Math.PI / 2),
+        slice3: quat.rotateX(quat.create(), quat.create(), Math.PI)
+      }
+    }
+    const views = layoutConfig.views;
+    const quats = [views.slice1, views.slice2, views.slice3];
+    let sliceViews = quats.map(q => { return makeSliceViewNhb(viewer, q); });
     let {display} = viewer;
 
     const perspectiveViewerState = {
       ...getCommonViewerState(viewer),
       navigationState: viewer.perspectiveNavigationState,
       showSliceViews: viewer.showPerspectiveSliceViews,
-      showSliceViewsCheckbox: true,
+      showSliceViewsCheckbox: !layoutConfig.hideSliceViewsCheckbox,
+      slicesNavigationState: viewer.navigationState //!!! Passed down to NehubaPerspectivePanel in the 'untyped' way. Was already deleted once by mistake. Be careful.
     };
 
     const sliceViewerState = {
@@ -79,11 +115,11 @@ export class NehubaLayout extends RefCounted {
         L.withFlex(1, L.box('row', [
           L.withFlex(1, element => {
             element.className = 'gllayoutcell noselect';
-            this.registerDisposer(new SliceViewPanel(display, element, sliceViews[0], sliceViewerState));
+            this.registerDisposer(configureSliceViewPanel(new SliceViewPanel(display, element, sliceViews[0], sliceViewerState)));
           }),
           L.withFlex(1, element => {
             element.className = 'gllayoutcell noselect';
-            this.registerDisposer(new SliceViewPanel(display, element, sliceViews[1], sliceViewerStateWithoutScaleBar));
+            this.registerDisposer(configureSliceViewPanel(new SliceViewPanel(display, element, sliceViews[1], sliceViewerStateWithoutScaleBar)));
           })
         ])),
         L.withFlex(1, L.box('row', [
@@ -97,7 +133,7 @@ export class NehubaLayout extends RefCounted {
           }),
           L.withFlex(1, element => {
             element.className = 'gllayoutcell noselect';
-            this.registerDisposer(new SliceViewPanel(display, element, sliceViews[2], sliceViewerStateWithoutScaleBar));
+            this.registerDisposer(configureSliceViewPanel(new SliceViewPanel(display, element, sliceViews[2], sliceViewerStateWithoutScaleBar)));
           })
         ])),
       ]))
@@ -124,7 +160,7 @@ function disableFixedPointInRotation(slice: SliceViewPanel, config: Config) {
 		//⇊⇊⇊ Our change is only here ⇊⇊⇊
       let initialPosition = config.disableFixedPointObliqueRotation ? undefined : vec3.clone(mouseState.position);
 		//⇈⇈⇈ Our change is only here ⇈⇈⇈
-		
+
       startRelativeMouseDrag(e, (event, deltaX, deltaY) => {
         let {position} = this.viewer.navigationState;
         if (event.shiftKey) {
