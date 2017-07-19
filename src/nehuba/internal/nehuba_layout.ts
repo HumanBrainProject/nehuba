@@ -121,7 +121,10 @@ function disableFixedPointInRotation(slice: SliceViewPanel, config: Config) {
 	slice.startDragViewport = function (this: SliceViewPanel, e: MouseEvent) {
     let {mouseState} = this.viewer;
     if (mouseState.updateUnconditionally()) {
-      let initialPosition = vec3.clone(mouseState.position);
+		//⇊⇊⇊ Our change is only here ⇊⇊⇊
+      let initialPosition = config.disableFixedPointObliqueRotation ? undefined : vec3.clone(mouseState.position);
+		//⇈⇈⇈ Our change is only here ⇈⇈⇈
+		
       startRelativeMouseDrag(e, (event, deltaX, deltaY) => {
         let {position} = this.viewer.navigationState;
         if (event.shiftKey) {
@@ -136,6 +139,8 @@ function disableFixedPointInRotation(slice: SliceViewPanel, config: Config) {
           vec3.transformMat4(pos, pos, this.sliceView.viewportToData);
           position.changed.dispatch();
         }
+        // 'restrictUserNavigation' is implemented in hooks.ts
+        // But maybe we can stop the mouse from moving beyond the boundaries if we implement it here?
       });
     }
 	};
