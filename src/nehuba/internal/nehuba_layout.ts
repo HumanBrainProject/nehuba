@@ -12,7 +12,7 @@ import { SliceViewViewerState, ViewerUIState, getCommonViewerState } from 'neuro
 import { Viewer } from 'neuroglancer/viewer';
 import { startRelativeMouseDrag } from 'neuroglancer/util/mouse_drag';
 
-import { NehubaPerspectivePanel } from "shuba/internal/nehuba_perspective_panel";
+import { NehubaPerspectivePanel } from "nehuba/internal/nehuba_perspective_panel";
 import { restrictUserNavigation } from "shuba/hooks";
 import { Config } from "shuba/config";
 
