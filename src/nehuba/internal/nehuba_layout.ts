@@ -25,7 +25,7 @@ import { Config } from "shuba/config";
  * Latest commit to viewer_layouts.ts 736b20335d4349d8a252bd37e33d343cb73294de on May 21, 2017 "feat: Add Viewer-level prefetching support."
  * Any changes in upstream version since then must be manually applied here with care.
  */
-export class FourPanelLayout extends RefCounted {
+export class NehubaLayout extends RefCounted {
   constructor(public rootElement: HTMLElement, public viewer: ViewerUIState) {
     super();
 
