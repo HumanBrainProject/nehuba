@@ -45,4 +45,12 @@ export class NehubaViewer {
 	relayout() {
 		this.ngviewer.layoutName.changed.dispatch();
 	}
+
+	redraw() {
+		this.ngviewer.display.scheduleRedraw();
+	}
+
+	dispose() {
+		this.ngviewer.dispose();
+	}
 }
