@@ -8,7 +8,7 @@ import { RenderLayer } from "neuroglancer/layer";
 import { SingleMeshLayer } from "neuroglancer/single_mesh/frontend";
 import { Viewer, ViewerOptions } from "neuroglancer/viewer";
 
-import { Config } from "shuba/config";
+import { Config } from "nehuba/config";
 import { NehubaLayout } from "nehuba/internal/nehuba_layout";
 import { NehubaMeshLayer } from "nehuba/internal/nehuba_mesh_layer";
 import { patchSingleMeshLayer } from "nehuba/internal/nehuba_single_mesh_layer";

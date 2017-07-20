@@ -2,7 +2,7 @@ import { Viewer } from 'neuroglancer/viewer';
 import { BoundingBox, vec3 } from 'neuroglancer/util/geom';
 import { SegmentationUserLayer } from "neuroglancer/segmentation_user_layer";
 
-import { Config } from "shuba/config";
+import { Config } from "nehuba/config";
 
 export function configureInstance(viewer: Viewer, config: Config) {
 	if (config.restrictUserNavigation) restrictUserNavigation(viewer);

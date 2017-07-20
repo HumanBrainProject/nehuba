@@ -9,7 +9,7 @@ import { quat } from 'neuroglancer/util/geom';
 import { Pose } from 'neuroglancer/navigation_state';
 
 import { NehubaSliceViewRenderHelper, TransparentPlaneRenderHelper } from "nehuba/internal/nehuba_renderers";
-import { Config } from "shuba/config";
+import { Config } from "nehuba/config";
 
 const tempVec3 = vec3.create();
 const tempMat4 = mat4.create();

@@ -14,7 +14,7 @@ import { startRelativeMouseDrag } from 'neuroglancer/util/mouse_drag';
 
 import { NehubaPerspectivePanel } from "nehuba/internal/nehuba_perspective_panel";
 import { restrictUserNavigation } from "nehuba/internal/hooks";
-import { Config } from "shuba/config";
+import { Config } from "nehuba/config";
 
 const sliceQuat = Symbol('SliceQuat');
 /**
@@ -79,14 +79,14 @@ export class NehubaLayout extends RefCounted {
     }
 
     if (!layoutConfig.views) {
-      layoutConfig.views = 'HBP'; // TODO should use neuroglaner quats by default
+      layoutConfig.views = 'hbp-neuro'; // TODO should use neuroglaner quats by default
       // = { //Default neuroglancer quats
       //   slice1: quat.create(),
       //   slice2: quat.rotateX(quat.create(), quat.create(), Math.PI / 2),
       //   slice3: quat.rotateY(quat.create(), quat.create(), Math.PI / 2)
       // }
     }
-    if (layoutConfig.views === 'HBP') {
+    if (layoutConfig.views === 'hbp-neuro') {
       layoutConfig.views = {
         slice1: quat.rotateX(quat.create(), quat.create(), -Math.PI / 2),
         slice2: quat.rotateY(quat.create(), quat.rotateX(quat.create(), quat.create(), -Math.PI / 2), -Math.PI / 2),

@@ -5,7 +5,7 @@ import {GL} from 'neuroglancer/webgl/context';
 import {ShaderBuilder, ShaderModule, ShaderProgram} from 'neuroglancer/webgl/shader';
 import {getSquareCornersBuffer} from 'neuroglancer/webgl/square_corners_buffer';
 
-import { removeBackgroundMode } from "shuba/config";
+import { removeBackgroundMode } from "nehuba/config";
 
 /**
  * In neuroglancer's SliceViewRenderHelper the shader is built in constructor. So it is not feasible to extend or monkey-patch it. 
