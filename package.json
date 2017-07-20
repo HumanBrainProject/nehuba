@@ -2,7 +2,7 @@
   "name": "nehuba",
   "description": "Neuroglancer for Human Brain Atlas",
   "version": "0.0.0-alpha.0",
-  "main": "./src/nehuba/main.ts",
+  "typings": "./src/nehuba/exports.ts",
   "author": "Pavel Chervakov",
   "license": "",
   "private": true,
