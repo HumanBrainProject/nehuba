@@ -7,8 +7,8 @@ import { configureInstance, configureParent } from "nehuba/internal/hooks";
 import { configSymbol } from "nehuba/internal/nehuba_layout";
 
 /** Create viewer */
-export function createNehubaViewer(configuration?: Config, container?: HTMLElement) { //TODO Accept String id for container and lookup ElementById
-	return NehubaViewer.create(configuration, container);
+export function createNehubaViewer(configuration?: Config/* , container?: HTMLElement */) { //TODO Accept String id for container and lookup ElementById
+	return NehubaViewer.create(configuration/* , container */);
 }
 
 export class NehubaViewer {
@@ -20,10 +20,10 @@ export class NehubaViewer {
 		this.ngviewer = viewer;
 	}
 
-	static create(configuration?: Config, container?: HTMLElement) { //TODO Accept String id for container and lookup ElementById
+	static create(configuration?: Config/* , container?: HTMLElement */) { //TODO Accept String id for container and lookup ElementById
 		const config = configuration || {};
 
-		const parent = container || document.getElementById('container')!; //TODO id as param ( String|HTMLElement )
+		const parent = /* container ||  */document.getElementById('container')!; //TODO id as param ( String|HTMLElement )
 		if ((<any>parent)[configSymbol]) throw new Error('Viewer is already created in this container: ' + parent);
 		(<any>parent)[configSymbol] = config;
 
