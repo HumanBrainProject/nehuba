@@ -64,22 +64,31 @@ export function restrictUserNavigation(viewer: Viewer) { //Exported, because 3d 
 }
 
 export function disableSegmentSelection(viewer: Viewer) {
-	forEachSegmentationUserLayer(viewer, (layer) => {
-		layer.displayState.segmentSelectionState.set(null);
-		layer.displayState.segmentSelectionState.set = function () {}
+	forAllSegmentationUserLayers(viewer, (layer) => {
+		disableSegmentSelectionForLayer(layer);
 	});
 }
 
-function forEachSegmentationUserLayer(viewer: Viewer, func: (layer: SegmentationUserLayer) => void) {
+export function disableSegmentSelectionForLayer(layer: SegmentationUserLayer) {
+	layer.displayState.segmentSelectionState.set(null);
+	layer.displayState.segmentSelectionState.set = function () {}
+}
+
+export function forAllSegmentationUserLayers(viewer: Viewer, func: (layer: SegmentationUserLayer) => void) {
 	let { layerManager } = viewer;
 	layerManager.registerDisposer(layerManager.layersChanged.add(() => {
-		layerManager.managedLayers
-			.map((l) => { return l.layer; })
-			.filter((layer) => { return !!layer; }) // null-check, just in case, perchaps not needed
-			.filter((layer) => { return layer instanceof SegmentationUserLayer; })
-			.map((l) => { return l as SegmentationUserLayer })
-			.forEach((layer) => { func(layer) });
+		forEachSegmentationUserLayerOnce(viewer, func);
 	}));
+}
+
+export function forEachSegmentationUserLayerOnce(viewer: Viewer, func: (layer: SegmentationUserLayer) => void) {
+	let { layerManager } = viewer;
+	layerManager.managedLayers
+		.map((l) => { return l.layer; })
+		.filter((layer) => { return !!layer; }) // null-check, just in case, perchaps not needed
+		.filter((layer) => { return layer instanceof SegmentationUserLayer; })
+		.map((l) => { return l as SegmentationUserLayer })
+		.forEach((layer) => { func(layer) });
 }
 
 function flipCtrlOfMouseWheelEvent(parent: HTMLElement, config: Config) {

@@ -3,7 +3,7 @@ import { Viewer } from "neuroglancer/viewer";
 
 import { Config } from "nehuba/config";
 import { patchNeuroglancer } from "nehuba/internal/patches";
-import { configureInstance, configureParent } from "nehuba/internal/hooks";
+import { configureInstance, configureParent, forEachSegmentationUserLayerOnce, disableSegmentSelectionForLayer } from "nehuba/internal/hooks";
 import { configSymbol } from "nehuba/internal/nehuba_layout";
 
 /** Create viewer */
@@ -65,5 +65,9 @@ export class NehubaViewer {
 	}
 	applyInitialNgState() {
 		NehubaViewer.restoreInitialState(this.ngviewer, this.config);
+	}
+	/** Disable segment selection only for currently loaded segmentation layers. New layers loaded afterwards are not affected.*/
+	disableSegmentSelectionForLoadedLayers() {
+		forEachSegmentationUserLayerOnce(this.ngviewer, disableSegmentSelectionForLayer);
 	}
 }
