@@ -16,7 +16,7 @@ export class NehubaViewer {
 	 *  But be warned that you can easily brake things by accessing it directly. */
 	ngviewer: Viewer
 
-	private constructor(viewer: Viewer) {
+	private constructor(viewer: Viewer, public config: Config) {
 		this.ngviewer = viewer;
 	}
 
@@ -35,22 +35,26 @@ export class NehubaViewer {
 		configureInstance(viewer, config);
 
 		if (viewer.layerManager.managedLayers.length === 0) {
-			const state = config.dataset && config.dataset.initialNgState;
-			state && viewer.state.restoreState(state);
+			NehubaViewer.restoreInitialState(viewer, config);
 		}
 
-		return new NehubaViewer(viewer);
+		return new NehubaViewer(viewer, config);
+	}
+	private static restoreInitialState(viewer: Viewer, config: Config) {
+		const state = config.dataset && config.dataset.initialNgState;
+		state && viewer.state.restoreState(state);
 	}
 
 	relayout() {
 		this.ngviewer.layoutName.changed.dispatch();
 	}
-
 	redraw() {
 		this.ngviewer.display.scheduleRedraw();
 	}
-
 	dispose() {
 		this.ngviewer.dispose();
+	}
+	applyInitialNgState() {
+		NehubaViewer.restoreInitialState(this.ngviewer, this.config);
 	}
 }
