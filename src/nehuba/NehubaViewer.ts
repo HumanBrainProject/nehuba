@@ -15,9 +15,18 @@ export class NehubaViewer {
 	/** Don't use it, should be private. Left exposed just in case you urgently need it and there is no way around it.
 	 *  But be warned that you can easily brake things by accessing it directly. */
 	ngviewer: Viewer
+	private _config: Config;
 
-	private constructor(viewer: Viewer, public config: Config) {
+	private constructor(viewer: Viewer, config: Config) {
 		this.ngviewer = viewer;
+		this._config = config;
+	}
+
+	get config() { return this._config; }
+	/** Temporary experimental workaround, might not work as expected. Don't use if you can avoid it. */
+	set config(newConfig: Config) {
+		this._config = newConfig;
+		(this.ngviewer.display.container as any)[configSymbol] = this._config;
 	}
 
 	static create(configuration?: Config/* , container?: HTMLElement */) { //TODO Accept String id for container and lookup ElementById
