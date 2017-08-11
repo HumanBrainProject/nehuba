@@ -17,10 +17,10 @@ export class NehubaViewer {
 	readonly ngviewer: Viewer
 	private _config: Config;
 
-	private mouseOnSegment?: (segment: number, layer?: {name: string, url:string}) => void;
+	private mouseOnSegment?: (segment: number, layer?: {name?: string, url?:string}) => void;
 	private mouseOffSegment?: () => void;
 
-	setMouseEnterSegmentCallback(callback: (segment: number, layer?: {name: string, url:string}) => void) {
+	setMouseEnterSegmentCallback(callback: (segment: number, layer?: {name?: string, url?:string}) => void) {
 		this.mouseOnSegment = callback;
 	}
 	clearMouseEnterSegmentCallback() {
@@ -47,7 +47,7 @@ export class NehubaViewer {
 					const selected = selection.selectedSegment;
 					if (selected.high !== 0) this.handleError('Segment id number does not fit into 32 bit integer');
 					const segment = selected.low;
-					/* if (segment) */ mouseOnSegment && mouseOnSegment(segment);
+					/* if (segment) */ mouseOnSegment && mouseOnSegment(segment, {url: layer.volumePath});
 					// else mouseOffSegment && mouseOffSegment();
 				} else mouseOffSegment && mouseOffSegment();
 			}));
