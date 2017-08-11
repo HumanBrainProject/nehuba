@@ -67,12 +67,12 @@ export class NehubaViewer {
 
 	private getSingleSegmentation(layer?: {name?: string, url?:string}) {
 		const res = this.ngviewer.layerManager.managedLayers
-			.filter(l => { return layer && layer.name && l.name === layer.name })
+			.filter(l => { return !layer || !layer.name || l.name === layer.name })
 			.map(l  => { return l.layer; })
 			.filter(l => { return !!l; }) // null-check, just in case, perchaps not needed
 			.filter(l => { return l instanceof SegmentationUserLayer; })
 			.map(l => { return l as SegmentationUserLayer })
-			.filter(l => { return layer && layer.url && l.volumePath === layer.url })
+			.filter(l => { return !layer || !layer.url || l.volumePath === layer.url })
 		if (res.length === 0) this.handleError('No parcellation found');
 		if (res.length > 1) this.handleError('Ambiguous request. Multiple parcellations found')
 		return res[0];
