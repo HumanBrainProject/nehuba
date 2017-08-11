@@ -55,12 +55,16 @@ export class NehubaViewer {
 		});
 	}
 
+	/** @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria */
 	showSegment(id: number, layer?: {name?: string, url?:string}) {
 		this.getSingleSegmentation(layer).displayState.visibleSegments.add(new Uint64(id));
 	}
+	/** @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria */
 	hideSegment(id: number, layer?: {name?: string, url?:string}) {
 		this.getSingleSegmentation(layer).displayState.visibleSegments.delete(new Uint64(id));
 	}
+	/** Attention! Due to how neuroglacner works, empty array corresponds to *ALL* the segments being visible. 
+	 *  @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria */
 	getShownSegments(layer?: {name?: string, url?:string}) {
 		return Array.from(this.getSingleSegmentation(layer).displayState.visibleSegments, this.segmentToNumber);
 	}
@@ -73,17 +77,17 @@ export class NehubaViewer {
 			.filter(l => { return l instanceof SegmentationUserLayer; })
 			.map(l => { return l as SegmentationUserLayer })
 			.filter(l => { return !layer || !layer.url || l.volumePath === layer.url })
-		if (res.length === 0) this.handleError('No parcellation found');
-		if (res.length > 1) this.handleError('Ambiguous request. Multiple parcellations found')
+		if (res.length === 0) this.throwError('No parcellation found');
+		if (res.length > 1) this.throwError('Ambiguous request. Multiple parcellations found')
 		return res[0];
 	}
 
 	private segmentToNumber(segment: Uint64) {
-		if (segment.high !== 0) this.handleError('Segment id number does not fit into 32 bit integer ' + segment.toString(10));
+		if (segment.high !== 0) this.throwError('Segment id number does not fit into 32 bit integer ' + segment.toString(10));
 		return segment.low;
 	}
 
-	private handleError(message: string) {
+	private throwError(message: string) {
 		const error = new Error(message);
 		const {errorHandler} = this;
 		// this.errorHandler ? this.errorHandler(error) :  (() => {throw error})();
