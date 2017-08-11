@@ -1,3 +1,5 @@
+import { Uint64 } from 'neuroglancer/util/uint64';
+import { SegmentationUserLayer } from "neuroglancer/segmentation_user_layer";
 import { setupDefaultViewer } from 'neuroglancer/ui/default_viewer_setup';
 import { Viewer } from "neuroglancer/viewer";
 
@@ -44,15 +46,41 @@ export class NehubaViewer {
 			selection.registerDisposer(selection.changed.add(() => {
 				const {mouseOnSegment, mouseOffSegment} = this;
 				if (selection.hasSelectedSegment) {
-					const selected = selection.selectedSegment;
-					if (selected.high !== 0) this.handleError('Segment id number does not fit into 32 bit integer');
-					const segment = selected.low;
+					const segment = this.segmentToNumber(selection.selectedSegment);
 					/* if (segment) */ mouseOnSegment && mouseOnSegment(segment, {url: layer.volumePath});
 					// else mouseOffSegment && mouseOffSegment();
 				} else mouseOffSegment && mouseOffSegment();
 			}));
 			(<any>layer)[callbacksSet] = true;
 		});
+	}
+
+	showSegment(id: number, layer?: {name?: string, url?:string}) {
+		this.getSingleSegmentation(layer).displayState.visibleSegments.add(new Uint64(id));
+	}
+	hideSegment(id: number, layer?: {name?: string, url?:string}) {
+		this.getSingleSegmentation(layer).displayState.visibleSegments.delete(new Uint64(id));
+	}
+	getShownSegments(layer?: {name?: string, url?:string}) {
+		return Array.from(this.getSingleSegmentation(layer).displayState.visibleSegments, this.segmentToNumber);
+	}
+
+	private getSingleSegmentation(layer?: {name?: string, url?:string}) {
+		const res = this.ngviewer.layerManager.managedLayers
+			.filter(l => { return layer && layer.name && l.name === layer.name })
+			.map(l  => { return l.layer; })
+			.filter(l => { return !!l; }) // null-check, just in case, perchaps not needed
+			.filter(l => { return l instanceof SegmentationUserLayer; })
+			.map(l => { return l as SegmentationUserLayer })
+			.filter(l => { return layer && layer.url && l.volumePath === layer.url })
+		if (res.length === 0) this.handleError('No parcellation found');
+		if (res.length > 1) this.handleError('Ambiguous request. Multiple parcellations found')
+		return res[0];
+	}
+
+	private segmentToNumber(segment: Uint64) {
+		if (segment.high !== 0) this.handleError('Segment id number does not fit into 32 bit integer ' + segment.toString(10));
+		return segment.low;
 	}
 
 	private handleError(message: string) {
