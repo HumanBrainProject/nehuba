@@ -189,7 +189,7 @@ function disableFixedPointInRotation(slice: SliceViewPanel, config: Config) {
     let {mouseState} = this.viewer;
     if (mouseState.updateUnconditionally()) {
 		//⇊⇊⇊ Our change is only here ⇊⇊⇊
-      let initialPosition = config.disableFixedPointObliqueRotation ? undefined : vec3.clone(mouseState.position);
+      let initialPosition = config.rotateAtViewCentre ? undefined : vec3.clone(mouseState.position);
 		//⇈⇈⇈ Our change is only here ⇈⇈⇈
 
       startRelativeMouseDrag(e, (event, deltaX, deltaY) => {
