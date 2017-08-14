@@ -7,6 +7,7 @@ import { Config } from "nehuba/config";
 import { patchNeuroglancer } from "nehuba/internal/patches";
 import { configureInstance, configureParent, forEachSegmentationUserLayerOnce, disableSegmentSelectionForLayer, forAllSegmentationUserLayers } from "nehuba/internal/hooks";
 import { configSymbol } from "nehuba/internal/nehuba_layout";
+import { vec3, quat } from "nehuba/exports";
 
 /** Create viewer */
 export function createNehubaViewer(configuration?: Config/* , container?: HTMLElement */, errorHandler?: (error: Error) => void) { //TODO Accept String id for container and lookup ElementById
@@ -21,23 +22,93 @@ export class NehubaViewer {
 
 	private mouseOnSegment?: (segment: number, layer?: {name?: string, url?:string}) => void;
 	private mouseOffSegment?: () => void;
+	private navigationStateRealSpaceCallback?: (position: vec3, orientation?: quat) => void;
+	private navigationStateVoxelCallback?: (position: vec3, orientation?: quat) => void;
+	private mousePositionRealSpaceCallback?: (position: vec3 | null) => void;
+	private mousePositionVoxelCallback?: (position: vec3 | null) => void;
 
 	setMouseEnterSegmentCallback(callback: (segment: number, layer?: {name?: string, url?:string}) => void) {
 		this.mouseOnSegment = callback;
+		forEachSegmentationUserLayerOnce(this.ngviewer, layer => layer.displayState.segmentSelectionState.changed.dispatch());
 	}
 	clearMouseEnterSegmentCallback() {
 		this.mouseOnSegment = undefined;
 	}
 	setMouseLeaveSegmentCallback(callback: () => void) {
 		this.mouseOffSegment = callback;
+		forEachSegmentationUserLayerOnce(this.ngviewer, layer => layer.displayState.segmentSelectionState.changed.dispatch());
 	}
 	clearMouseLeaveSegmentCallback() {
 		this.mouseOffSegment = undefined;
+	}
+	setNavigationStateCallbackInRealSpaceCoordinates(callback: (position: vec3, orientation?: quat) => void) {
+		this.navigationStateRealSpaceCallback = callback;
+		this.ngviewer.navigationState.pose.changed.dispatch();
+	}
+	clearNavigationStateCallbackInRealSpaceCoordinates() {
+		this.navigationStateRealSpaceCallback = undefined;
+	}
+	setNavigationStateCallbackInVoxelCoordinates(callback: (position: vec3, orientation?: quat) => void) {
+		this.navigationStateVoxelCallback = callback;
+		this.ngviewer.navigationState.pose.changed.dispatch();
+	}
+	clearNavigationStateCallbackInVoxelCoordinates() {
+		this.navigationStateVoxelCallback = undefined;
+	}
+	/** Attention! Will pass 'null' value to callback in order to indicate that mouse left "image-containing" area, so that relevant action
+	 *  could be taken, such as clearing mouse coordinates in UI. Therefor is it NECESSARY to check position for null before using it. */
+	setMousePositionCallbackInRealSpaceCoordinates(callback: (position: vec3 | null) => void) {
+		this.mousePositionRealSpaceCallback = callback;
+		// this.ngviewer.mouseState.changed.dispatch(); //FIXME gives [0, 0, 0]
+	}
+	clearMousePositionCallbackInRealSpaceCoordinates() {
+		this.mousePositionRealSpaceCallback = undefined;
+	}
+	/** Attention! Will pass 'null' value to callback in order to indicate that mouse left "image-containing" area, so that relevant action
+	 *  could be taken, such as clearing mouse coordinates in UI. Therefor is it NECESSARY to check position for null before using it. */
+	setMousePositionCallbackInVoxelCoordinates(callback: (position: vec3 | null) => void) {
+		this.mousePositionVoxelCallback = callback;
+		// this.ngviewer.mouseState.changed.dispatch(); //FIXME gives [0, 0, 0]
+	}
+	clearMousePositionCallbackInVoxelCoordinates() {
+		this.mousePositionVoxelCallback = undefined;
 	}
 
 	private constructor(viewer: Viewer, config: Config, public errorHandler?: (error: Error) => void) {
 		this.ngviewer = viewer;
 		this._config = config;
+
+		const {pose} = viewer.navigationState;
+		pose.registerDisposer(pose.changed.add(() => {
+			const {navigationStateRealSpaceCallback, navigationStateVoxelCallback}	= this;
+			const orientation = quat.clone(pose.orientation.orientation);
+			navigationStateRealSpaceCallback && navigationStateRealSpaceCallback(
+				vec3.clone(pose.position.spatialCoordinates),
+				orientation
+			);
+			let voxelPos = vec3.create();
+			if (pose.position.getVoxelCoordinates(voxelPos)){
+				for (let i = 0; i < 3; ++i) voxelPos[i] = Math.floor(voxelPos[i]);
+				navigationStateVoxelCallback && navigationStateVoxelCallback(
+					voxelPos,
+					orientation
+				);
+			}
+		}));
+
+		const {mouseState} = viewer;
+		viewer.registerDisposer(mouseState.changed.add(() => {
+			const {mousePositionRealSpaceCallback, mousePositionVoxelCallback} = this;
+			if (mouseState.active) {
+				mousePositionRealSpaceCallback && mousePositionRealSpaceCallback(vec3.clone(mouseState.position));
+				let voxelPos = pose.position.voxelSize.voxelFromSpatial(vec3.create(), mouseState.position);
+				for (let i = 0; i < 3; ++i) voxelPos[i] = Math.round(voxelPos[i]);
+				mousePositionVoxelCallback && mousePositionVoxelCallback(voxelPos);
+			} else {
+				mousePositionRealSpaceCallback && mousePositionRealSpaceCallback(null);
+				mousePositionVoxelCallback && mousePositionVoxelCallback(null);
+			}
+		}));
 
 		const callbacksSet = Symbol('Callbacks are set');
 		forAllSegmentationUserLayers(viewer, layer => {
