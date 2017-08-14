@@ -74,7 +74,7 @@ export class NehubaLayout extends RefCounted {
       return slice;
     }
     const configureSliceViewPanel = (slice: SliceViewPanel) => {
-      disableFixedPointInRotation(changeBackground(slice), config);
+      disableFixedPointInZoom(disableFixedPointInRotation(changeBackground(slice), config), config);
       return slice;
     }
 
@@ -214,6 +214,17 @@ function disableFixedPointInRotation(slice: SliceViewPanel, config: Config) {
 
   return slice;
 }
+
+function disableFixedPointInZoom(slice: SliceViewPanel, config: Config) {
+  const originalZoomByMouse = slice.zoomByMouse;
+  slice.zoomByMouse = function (this: SliceViewPanel, factor: number) {
+    if (config.zoomAtViewCentre) this.navigationState.zoomBy(factor);
+    else originalZoomByMouse.call(this, factor);
+  }
+
+  return slice;
+}  
+
 /*
 function patchSliceView(slice: SliceViewPanel) {
   let untyped = slice as any;
