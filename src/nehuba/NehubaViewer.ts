@@ -74,6 +74,15 @@ export class NehubaViewer {
 		this.mousePositionVoxelCallback = undefined;
 	}
 
+	setPosition(newPosition: vec3, realSpace?: boolean) {
+		const {position} = this.ngviewer.navigationState.pose;
+		if (realSpace) { 
+			vec3.copy(position.spatialCoordinates, newPosition);
+			position.markSpatialCoordinatesChanged();
+		}
+		else position.setVoxelCoordinates(newPosition);
+	}
+
 	private constructor(viewer: Viewer, config: Config, public errorHandler?: (error: Error) => void) {
 		this.ngviewer = viewer;
 		this._config = config;
