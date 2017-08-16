@@ -7,11 +7,13 @@ import { SingleMeshUserLayer } from "neuroglancer/single_mesh_user_layer";
 import { RenderLayer } from "neuroglancer/layer";
 import { SingleMeshLayer } from "neuroglancer/single_mesh/frontend";
 import { Viewer, ViewerOptions } from "neuroglancer/viewer";
+import { SegmentationRenderLayer } from 'neuroglancer/sliceview/volume/segmentation_renderlayer';
 
 import { Config } from "nehuba/config";
 import { NehubaLayout } from "nehuba/internal/nehuba_layout";
 import { NehubaMeshLayer } from "nehuba/internal/nehuba_mesh_layer";
 import { patchSingleMeshLayer } from "nehuba/internal/nehuba_single_mesh_layer";
+import { NehubaSegmentColorShaderManager } from "nehuba/internal/nehuba_segment_color";
 
 let patched = false;
 /** Monkey patch neuroglancer code. Can be done only once. Can not be undone. Should be done before any Viewer instances are created and affects all of them. */
@@ -29,6 +31,7 @@ export function patchNeuroglancer(config: Config) {
 		LAYOUTS[0] = ['Nehuba', (element, viewer) => new NehubaLayout(element, viewer)];
 	}
 	if (conf.hideNullImageValues) fix_HideNullImageValues();
+	if (conf.useCustomSegmentColors) useNehubaColorsInSegmentationRenderLayer(); // !!! Depends on complementary hook in `hooks.ts`
 	if (conf.useNehubaMeshLayer) useNehubaMeshInSegmentationLayer();
 	if (conf.useNehubaSingleMeshLayer) useNehubaSingleMesh();
 	if (conf.embedded) hideNeuroglancerUI();
@@ -77,6 +80,16 @@ function fix_HideNullImageValues() {
 	}
 }
 
+//@ZeroMaintenance. Wraps original NG function, so no care needed when updating NG.
+function useNehubaColorsInSegmentationRenderLayer() {
+	const originalAddRenderLayer = SegmentationUserLayer.prototype.addRenderLayer;
+	SegmentationUserLayer.prototype.addRenderLayer = function (this: SegmentationUserLayer, layer: RenderLayer) {
+		if (layer instanceof SegmentationRenderLayer) {
+			layer['segmentColorShaderManager'] = new NehubaSegmentColorShaderManager('segmentColorHash'); // Why is it private in the base class? Why not protected? PR #44 submitted to neuroglancer
+		}
+		originalAddRenderLayer.call(this, layer);
+	}
+}
 
 //@MinimalMaintenance. Because method is so small and the change is so simple. But needs to be monitored upstream for changes.
 function useNehubaMeshInSegmentationLayer() {

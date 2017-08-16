@@ -8,6 +8,7 @@ import { patchNeuroglancer } from "nehuba/internal/patches";
 import { configureInstance, configureParent, forEachSegmentationUserLayerOnce, disableSegmentSelectionForLayer, forAllSegmentationUserLayers } from "nehuba/internal/hooks";
 import { configSymbol } from "nehuba/internal/nehuba_layout";
 import { vec3, quat } from "nehuba/exports";
+import { NehubaSegmentColorHash } from "nehuba/internal/nehuba_segment_color";
 
 /** Create viewer */
 export function createNehubaViewer(configuration?: Config/* , container?: HTMLElement */, errorHandler?: (error: Error) => void) { //TODO Accept String id for container and lookup ElementById
@@ -148,7 +149,24 @@ export class NehubaViewer {
 	getShownSegments(layer?: {name?: string, url?:string}) {
 		return Array.from(this.getSingleSegmentation(layer).displayState.visibleSegments, this.segmentToNumber);
 	}
+	/** @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria */
+	/** @throws Will throw an error if custom segment color support is not enabled in {config.globals} (not routed to {errorHandler})*/
+	/** @throws Will throw an error if rgb values are not integers in 0..255 range */
+	setSegmentColor(segmentId: number, color: {red:number, green: number, blue: number}, layer?: {name?: string, url?:string}) {
+		this.checkRGB(color);
+		this.getSingleSegmentationColors(layer).setSegmentColor(segmentId, color.red, color.green, color.blue);
+	}
+	/** @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria */
+	/** @throws Will throw an error if custom segment color support is not enabled in {config.globals} (not routed to {errorHandler})*/
+	clearCustomSegmentColors(layer?: {name?: string, url?:string}) {
+		this.getSingleSegmentationColors(layer).clearCustomSegmentColors();
+	}
 
+	private getSingleSegmentationColors(layer?: {name?: string, url?:string}) {
+		const res = this.getSingleSegmentation(layer).displayState.segmentColorHash;
+		if (res instanceof NehubaSegmentColorHash) return res;
+		else throw Error('Looks like neuroglancer was not patched and hooked to support custom segment colors. Are you sure you enabled it by `config.globals.useCustomSegmentColors: true` or similar?');//this.throwError('Looks like ');
+	}
 	private getSingleSegmentation(layer?: {name?: string, url?:string}) {
 		const res = this.ngviewer.layerManager.managedLayers
 			.filter(l => { return !layer || !layer.name || l.name === layer.name })
@@ -167,7 +185,7 @@ export class NehubaViewer {
 		return segment.low;
 	}
 
-	private throwError(message: string) {
+	private throwError(message: string): never {
 		const error = new Error(message);
 		const {errorHandler} = this;
 		// this.errorHandler ? this.errorHandler(error) :  (() => {throw error})();
@@ -228,4 +246,15 @@ export class NehubaViewer {
 	disableSegmentSelectionForLoadedLayers() {
 		forEachSegmentationUserLayerOnce(this.ngviewer, disableSegmentSelectionForLayer);
 	}
+
+
+	private checkRGB(color: {red:number, green: number, blue: number}) {
+		this.checkRGBValue(color.red, 'red');
+		this.checkRGBValue(color.green, 'green');
+		this.checkRGBValue(color.blue, 'blue');
+	}
+	private checkRGBValue(n: number, channel: string) { 
+		if (!Number.isInteger(n)) this.throwError(`Provided color value ${n} for ${channel} channel is not an integer (0 to 255).`);
+		if (n < 0 || n > 255) this.throwError(`Provided color value ${n} for ${channel} channel is not in expected range of 0 to 255.`);
+	};
 }

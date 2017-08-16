@@ -3,10 +3,12 @@ import { BoundingBox, vec3 } from 'neuroglancer/util/geom';
 import { SegmentationUserLayer } from "neuroglancer/segmentation_user_layer";
 
 import { Config } from "nehuba/config";
+import { NehubaSegmentColorHash } from "nehuba/internal/nehuba_segment_color";
 
 export function configureInstance(viewer: Viewer, config: Config) {
 	if (config.restrictUserNavigation) restrictUserNavigation(viewer);
 	if (config.disableSegmentSelection) disableSegmentSelection(viewer);
+	if (config.globals && config.globals.useCustomSegmentColors) useNehubaCustomSegmentColors(viewer);  // !!! Depends on complementary patch in `patches.ts`
 }
 
 export function configureParent(parent: HTMLElement, config: Config) {
@@ -64,6 +66,13 @@ export function restrictUserNavigation(viewer: Viewer) { //Exported, because 3d 
 	(<any>viewer)[hooked] = true;
 }
 
+function useNehubaCustomSegmentColors(viewer: Viewer) {
+	forAllSegmentationUserLayers(viewer, layer => {
+		const { displayState } = layer;
+		if (!(displayState.segmentColorHash instanceof NehubaSegmentColorHash)) displayState.segmentColorHash = NehubaSegmentColorHash.from(displayState.segmentColorHash);
+	})
+}
+
 export function disableSegmentSelection(viewer: Viewer) {
 	forAllSegmentationUserLayers(viewer, (layer) => {
 		disableSegmentSelectionForLayer(layer);
@@ -76,8 +85,12 @@ export function disableSegmentSelectionForLayer(layer: SegmentationUserLayer) {
 }
 
 /** !!! func will be called for each layer every time the set of layers changes.
- *  So it might be called many times for the same layer. TODO change function name to reflect that  */
+ *  So it might be called many times for the same layer. TODO change function name to reflect that 
+ *  !!! Since this function becomes popular and number of hooks applied to SegmentationUserLayer grows steadily ->
+ *  The hooks might start to depend on each other and the order of invocation might become important!!! 
+ *  In this case it is de facto a mess and must be reimplemented */
 export function forAllSegmentationUserLayers(viewer: Viewer, func: (layer: SegmentationUserLayer) => void) {
+	forEachSegmentationUserLayerOnce(viewer, func);
 	let { layerManager } = viewer;
 	layerManager.registerDisposer(layerManager.layersChanged.add(() => {
 		forEachSegmentationUserLayerOnce(viewer, func);
