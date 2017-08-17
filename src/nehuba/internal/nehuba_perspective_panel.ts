@@ -78,12 +78,6 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
 	}
 
   draw() {
-	  //Get private properties of base class. Why are they private? Why not protected? PR #44 submitted to neuroglancer
-	  let offscreenFramebuffer = this['offscreenFramebuffer']; 
-		let transparencyCopyHelper = this['transparencyCopyHelper'];
-    let offscreenCopyHelper = this['offscreenCopyHelper'];
-    //TODO remove above if PR #44 is accepted
-
     let {width, height} = this;
     if (!this.navigationState.valid || width === 0 || height === 0) {
       return;
@@ -100,7 +94,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     }
 
     let gl = this.gl;
-     /*this.*/offscreenFramebuffer.bind(width, height);
+     this.offscreenFramebuffer.bind(width, height);
 
     gl.disable(gl.SCISSOR_TEST);
     const conf = this.config.layout!.useNehubaPerspective!;
@@ -124,7 +118,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     let ambient = 0.2;
     let directional = 1 - ambient;
 
-    let pickIDs = this['pickIDs']; // Why is it private in the base class? Why not protected? PR #44 submitted to neuroglancer
+    let pickIDs = this.pickIDs;
     pickIDs.clear();
     let renderContext: PerspectiveViewRenderContext & {extra: ExtraRenderContext} = {
       dataToDevice: projectionMat,
@@ -138,7 +132,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
       alreadyEmittedPickID: false,
       viewportWidth: width,
       viewportHeight: height,
-      //Extra context for JulichMeshLayer
+      //Extra context for NehubaMeshLayer
       extra: {
         config: this.config,
         slicesPose: (<any>this.viewer).slicesNavigationState.pose as Pose,
@@ -147,7 +141,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
       }
     };
 
-    let visibleLayers = this['visibleLayerTracker'].getVisibleLayers(); // Why is it private in the base class? Why not protected? PR #44 submitted to neuroglancer
+    let visibleLayers = this.visibleLayerTracker.getVisibleLayers();
 
     let hasTransparent = false;
 
@@ -162,11 +156,11 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
 
     const waitForMesh =  this.config.layout!.useNehubaPerspective!.waitForMesh;
     if (this.viewer.showSliceViews.value && (!waitForMesh || renderContext.extra.meshRendered)) {
-      this.drawSliceViewsNhb(renderContext);
+      this.drawSliceViews(renderContext);
     }
 
     if (this.viewer.showAxisLines.value) {
-      this['drawAxisLines'](); // Why is it private in the base class? Why not protected? PR #44 submitted to neuroglancer
+      this.drawAxisLines();
     }
 
 
@@ -176,7 +170,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
       gl.enable(gl.BLEND);
 
       // Compute accumulate and revealage textures.
-      const transparentConfiguration = this['transparentConfiguration']; // const {transparentConfiguration} = this; // Why is it private in the base class? Why not protected? PR #44 submitted to neuroglancer
+      const transparentConfiguration = this['transparentConfiguration']; // const {transparentConfiguration} = this; // TODO PR #44 promoted wrong member!!! We need GETTER to be protected, so increse `private get transparentConfiguration()` and decrease `transparentConfiguration_` back to private
       transparentConfiguration.bind(width, height);
       this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -191,9 +185,9 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
 
       // Copy transparent rendering result back to primary buffer.
       gl.disable(gl.DEPTH_TEST);
-      /*this.*/offscreenFramebuffer.bindSingle(OffscreenTextures.COLOR);
+      this.offscreenFramebuffer.bindSingle(OffscreenTextures.COLOR);
       gl.blendFunc(gl.ONE_MINUS_SRC_ALPHA, gl.SRC_ALPHA);
-      /*this.*/transparencyCopyHelper.draw(
+      this.transparencyCopyHelper.draw(
           transparentConfiguration.colorBuffers[0].texture,
           transparentConfiguration.colorBuffers[1].texture);
 
@@ -202,7 +196,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
       gl.enable(gl.DEPTH_TEST);
 
       // Restore framebuffer attachments.
-      /*this.*/offscreenFramebuffer.bind(width, height);
+      this.offscreenFramebuffer.bind(width, height);
     }
 
     // Do picking only rendering pass.
@@ -219,15 +213,15 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     }
 
     gl.disable(gl.DEPTH_TEST);
-    /*this.*/offscreenFramebuffer.unbind();
+    this.offscreenFramebuffer.unbind();
 
     // Draw the texture over the whole viewport.
     this.setGLViewport();
-    /*this.*/offscreenCopyHelper.draw(
-        /*this.*/offscreenFramebuffer.colorBuffers[OffscreenTextures.COLOR].texture);
+    this.offscreenCopyHelper.draw(
+        this.offscreenFramebuffer.colorBuffers[OffscreenTextures.COLOR].texture);
   }
 
-  private drawSliceViewsNhb(renderContext: PerspectiveViewRenderContext) { //Had to rename method. // Why is it private in the base class? Why not protected? PR #44 submitted to neuroglancer
+  protected drawSliceViews(renderContext: PerspectiveViewRenderContext) {
     const conf = this.config.layout!.useNehubaPerspective!;
     
     let {sliceViewRenderHelper, nehubaSliceViewRenderHelper, transparentPlaneRenderHelper} = this;

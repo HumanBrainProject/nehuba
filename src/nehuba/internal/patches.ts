@@ -85,7 +85,7 @@ function useNehubaColorsInSegmentationRenderLayer() {
 	const originalAddRenderLayer = SegmentationUserLayer.prototype.addRenderLayer;
 	SegmentationUserLayer.prototype.addRenderLayer = function (this: SegmentationUserLayer, layer: RenderLayer) {
 		if (layer instanceof SegmentationRenderLayer) {
-			layer['segmentColorShaderManager'] = new NehubaSegmentColorShaderManager('segmentColorHash'); // Why is it private in the base class? Why not protected? PR #44 submitted to neuroglancer
+			layer['segmentColorShaderManager'] = new NehubaSegmentColorShaderManager('segmentColorHash'); // TODO Promoted to protected by our PR #44, but still not accessible by monkey-patching. Unless used by subclass in the future... TODO submit PR to promote to public or back to private
 		}
 		originalAddRenderLayer.call(this, layer);
 	}

@@ -60,7 +60,7 @@ if (vNavPos.x > 0.0 && vNavPos.y > 0.0 && vNavPos.z > 0.0) {
 //For the moment this little monkey-patching seems reasonable, but in general we should implement our own layer type. See {@link patches.useNehubaSingleMesh}
 /** Monkey-patch SingleMeshLayer to provide the capability to remove the front (or any other) octant of the mesh. */
 export function patchSingleMeshLayer(layer: SingleMeshLayer) {
-	layer['makeShaderManager'] = function (this: SingleMeshLayer, fragmentMain = this.displayState.fragmentMain.value) { // Why is it private in the base class? Why not protected? PR #44 submitted to neuroglancer
+	layer['makeShaderManager'] = function (this: SingleMeshLayer, fragmentMain = this.displayState.fragmentMain.value) { // TODO Promoted to protected by our PR #44, but still not accessible by monkey-patching. Unless used by subclass in the future... TODO submit PR to promote to public or back to private
 		return new NehubaSingleMeshShaderManager(
 			this.displayState.attributeNames.value, this.source.info.vertexAttributes, fragmentMain);
 	}
@@ -74,13 +74,13 @@ export function patchSingleMeshLayer(layer: SingleMeshLayer) {
 		if (chunk === undefined || chunk.state !== ChunkState.GPU_MEMORY) {
 			return;
 		}
-		let shader = this['getShader'](renderContext.emitter); // Why is it private in the base class? Why not protected? PR #44 submitted to neuroglancer
+		let shader = this['getShader'](renderContext.emitter); // TODO Promoted to protected by our PR #44, but still not accessible by monkey-patching. Unless used by subclass in the future... TODO submit PR to promote to public or back to private
 		if (shader === null) {
 			return;
 		}
 
 		let {gl} = this;
-		let shaderManager = this['shaderManager']! as NehubaSingleMeshShaderManager; // Why is it private in the base class? Why not protected? PR #44 submitted to neuroglancer
+		let shaderManager = this['shaderManager']! as NehubaSingleMeshShaderManager; // TODO Promoted to protected by our PR #44, but still not accessible by monkey-patching. Unless used by subclass in the future... TODO submit PR to promote to public or back to private
 		shader.bind();
 		shaderManager.beginLayer(gl, shader, renderContext);
 
@@ -97,7 +97,7 @@ export function patchSingleMeshLayer(layer: SingleMeshLayer) {
 		if (renderContext.emitPickID) {
 			shaderManager.setPickID(gl, shader, pickIDs.register(this, chunk.numIndices / 3));
 		}
-		shaderManager.drawFragment(gl, shader, chunk, this['countingBuffer']); // Why is it private in the base class? Why not protected? PR #44 submitted to neuroglancer
+		shaderManager.drawFragment(gl, shader, chunk, this['countingBuffer']); // TODO Promoted to protected by our PR #44, but still not accessible by monkey-patching. Unless used by subclass in the future... TODO submit PR to promote to public or back to private
 		shaderManager.endLayer(gl, shader);
 		renderContext.extra.meshRendered = true;
 	}

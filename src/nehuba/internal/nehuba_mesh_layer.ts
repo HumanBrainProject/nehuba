@@ -57,7 +57,7 @@ if (vNavPos.x > 0.0 && vNavPos.y > 0.0 && vNavPos.z > 0.0) {
 export class NehubaMeshLayer extends MeshLayer {
 	constructor(chunkManager: ChunkManager, source: MeshSource, displayState: SegmentationDisplayState3D) {
 		super(chunkManager, source, displayState);
-		this['meshShaderManager'] = new NehubaMeshShaderManager(); // Why is it private in the base class? Why not protected? PR #44 submitted to neuroglancer
+		this.meshShaderManager = new NehubaMeshShaderManager();
 	}	
 
 
@@ -67,13 +67,13 @@ export class NehubaMeshLayer extends MeshLayer {
 			return;
 		}
 		let {gl, displayState, /*meshShaderManager*/} = this;
-		let meshShaderManager = this['meshShaderManager'] as NehubaMeshShaderManager; // Why is it private in the base class? Why not protected? PR #44 submitted to neuroglancer
+		let meshShaderManager = this.meshShaderManager as NehubaMeshShaderManager;
 		let alpha = Math.min(1.0, displayState.objectAlpha.value);
 		if (alpha <= 0.0) {
 			// Skip drawing.
 			return;
 		}
-		let shader = this['getShader'](renderContext.emitter); // Why is it private in the base class? Why not protected? PR #44 submitted to neuroglancer
+		let shader = this.getShader(renderContext.emitter);
 		shader.bind();
 		meshShaderManager.beginLayer(gl, shader, renderContext);
 
