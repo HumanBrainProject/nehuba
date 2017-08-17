@@ -32,14 +32,15 @@ vec3 ${originalPrefix}(uint64_t x) {
 
 	//Called at each draw
 	enable(gl: GL, shader: ShaderProgram, segmentColorHash: SegmentColorHash) {
-		const gpuHashTable = GPUHashTable.get(gl, (segmentColorHash as NehubaSegmentColorHash).colorMap);
+		const gpuHashTable = GPUHashTable.get(gl, (segmentColorHash as NehubaSegmentColorHash).gpuColorMap);
 		this.hashMapShaderManager.enable(gl, shader, gpuHashTable);		
 		super.enable(gl, shader, segmentColorHash);
 	}
 }
 
 export class NehubaSegmentColorHash extends SegmentColorHash {
-	readonly colorMap = new HashMapUint64();
+	readonly gpuColorMap = new HashMapUint64();
+	readonly colorMap = new Map<number, {red:number, green: number, blue: number, gpu: number}>();
 	
 	private constructor(hashFunctions: HashFunction[], changed: NullarySignal) {
 		super(hashFunctions);
@@ -55,44 +56,69 @@ export class NehubaSegmentColorHash extends SegmentColorHash {
 		return res;
 	}
 	
-	//TODO Make a separate call for batch setting of the whole color map without triggering redraw
 	setSegmentColor(segment: number, red:number, green: number, blue: number) {
 		//rgb values are checked for [0, 255] in NehubaViewer
-		this.colorMap.set(new Uint64(segment), new Uint64((blue * 256 * 256) + (green * 256) + red));
+		const gpu = (blue * 256 * 256) + (green * 256) + red;
+		this.colorMap.set(segment, {red, green, blue, gpu});
+		if (!(this.gpuColorMap.set(new Uint64(segment), new Uint64(gpu)))) this.repopulateGpuMap();
 		this.changed.dispatch();
 	}
-	/* Since `delete` is not implemented in `HashMapUint64` but inherited from `HashTableBase` it might be not intended and/or tested 
-		in the context of `HashMapUint64`. It looks like it only deletes the key but not the value and I have no confidence in using it.
-		If `unsetSegmentColor` is really needed, it might be safer to clear and repopulate `colorMap` instead of `delete`. 
-		( At least `HashMapUint64.clear` is used by Neuroglancer authors in `EquivalencesHashMap`)  */
-	// unsetSegmentColor(segment: number) {
-	// 	this.colorMap.delete(new Uint64(segment));
-	// 	this.changed.dispatch();
-	// }
+
+	unsetSegmentColor(segment: number) {
+		this.colorMap.delete(segment);
+		this.repopulateGpuMap();
+		this.changed.dispatch();
+	}
+
+	batchUpdate(map: Map<number, {red:number, green: number, blue: number}>) {
+		map.forEach( (color, segment) => {
+			const {red, green, blue} = color;
+			const gpu = (blue * 256 * 256) + (green * 256) + red;
+			this.colorMap.set(segment, {red, green, blue, gpu})
+		});
+		this.repopulateGpuMap();
+		this.changed.dispatch();
+	}
 
 	clearCustomSegmentColors() {
 		this.colorMap.clear();
+		this.gpuColorMap.clear();
 		this.changed.dispatch();
 	}
 
+	private repopulateGpuMap() {
+		const {colorMap, gpuColorMap} = this;
+		gpuColorMap.clear();
+		colorMap.forEach((color, segment) => { gpuColorMap.set(new Uint64(segment), new Uint64(color.gpu)) });
+	}
+
 	static getDefault(): never {
-		throw new Error('');
+		throw new Error('NehubaSegmentColorHash is supposed to be created by `from` static method');
 	}
 
 	compute(out: Float32Array, x: Uint64) {
-		let value = new Uint64();
-		if (this.colorMap.get(x, value)) {
-			let encoded = value.low;
-			let others = Math.round(encoded % (256 * 256));
-			const blue = Math.round(((encoded - others) / 256));
-			encoded -= (blue * 256 * 256);
-			const red = Math.round(encoded % 256);
-			const green = Math.round((encoded - red) / 256);
+		// let value = new Uint64();
+		// if (this.gpuColorMap.get(x, value)) {
+		// 	let encoded = value.low;
+		// 	let others = Math.round(encoded % (256 * 256));
+		// 	const blue = Math.round(((encoded - others) / 256));
+		// 	encoded -= (blue * 256 * 256);
+		// 	const red = Math.round(encoded % 256);
+		// 	const green = Math.round((encoded - red) / 256);
+		// 	out[0] = red / 255;
+		// 	out[1] = green / 255;
+		// 	out[2] = blue / 255;
+		// 	return out;
+		// }
+		const color = this.colorMap.get(x.low);
+		if (color) {
+			let {red, green, blue} = color;
 			out[0] = red / 255;
 			out[1] = green / 255;
 			out[2] = blue / 255;
 			return out;
-		} else return super.compute(out, x);
+		}
+		else return super.compute(out, x);
 	}
 
 	toString() {

@@ -158,8 +158,18 @@ export class NehubaViewer {
 	}
 	/** @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria */
 	/** @throws Will throw an error if custom segment color support is not enabled in {config.globals} (not routed to {errorHandler})*/
+	unsetSegmentColor(segmentId: number, layer?: {name?: string, url?:string}) {
+		this.getSingleSegmentationColors(layer).unsetSegmentColor(segmentId);
+	}
+	/** @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria */
+	/** @throws Will throw an error if custom segment color support is not enabled in {config.globals} (not routed to {errorHandler})*/
 	clearCustomSegmentColors(layer?: {name?: string, url?:string}) {
 		this.getSingleSegmentationColors(layer).clearCustomSegmentColors();
+	}
+	/** @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria */
+	/** @throws Will throw an error if custom segment color support is not enabled in {config.globals} (not routed to {errorHandler})*/
+	batchAddAndUpdateSegmentColors(colorMap: Map<number, {red:number, green: number, blue: number}>, layer?: {name?: string, url?:string}) {
+		this.getSingleSegmentationColors(layer).batchUpdate(colorMap);
 	}
 
 	private getSingleSegmentationColors(layer?: {name?: string, url?:string}) {
