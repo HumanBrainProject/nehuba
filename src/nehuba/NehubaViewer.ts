@@ -248,6 +248,7 @@ export class NehubaViewer {
 	}
 	dispose() {
 		this.ngviewer.dispose();
+		(this.ngviewer.display.container as any)[configSymbol] = undefined;
 	}
 	applyInitialNgState() {
 		NehubaViewer.restoreInitialState(this.ngviewer, this.config);
