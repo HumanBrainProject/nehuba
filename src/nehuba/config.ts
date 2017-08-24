@@ -70,7 +70,7 @@ export interface Config {
 	 *  Currently there is no way to 'undo' this restriction for the provided Viewer instance. Thus not togglable. (This could be changed if needed)*/
 	restrictUserNavigation?: boolean
 	/** Disables 'selection' when mouse hovers over a segment. Currently is only used by BigBrain preview, because with 2 large segments this selection 
-	 *  is just annoying flickering.	Not togglable.*/
+	 *  is just annoying flickering.	Semi-togglable, meaning that toggling will affect only freshly added layers, but not the ones already present. */
 	disableSegmentSelection?: boolean
 
 	/** Neuroglancer state plus additional metadata neseccary to properly display the dataset. 

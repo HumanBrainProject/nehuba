@@ -7,8 +7,10 @@ import { NehubaSegmentColorHash } from "nehuba/internal/nehuba_segment_color";
 
 export function configureInstance(viewer: Viewer, config: Config) {
 	if (config.restrictUserNavigation) restrictUserNavigation(viewer);
-	if (config.disableSegmentSelection) disableSegmentSelection(viewer);
-	if (config.globals && config.globals.useCustomSegmentColors) useNehubaCustomSegmentColors(viewer);  // !!! Depends on complementary patch in `patches.ts`
+	// if (config.disableSegmentSelection) disableSegmentSelection(viewer); //@deprecated Handled in NehubaViewer constructor
+	
+	// !!! Depends on complementary patch in `patches.ts`, so don't rxify it just yet (it's global)
+	if (config.globals && config.globals.useCustomSegmentColors) useNehubaCustomSegmentColors(viewer);
 }
 
 export function configureParent(parent: HTMLElement, config: Config) {
@@ -73,12 +75,6 @@ function useNehubaCustomSegmentColors(viewer: Viewer) {
 	})
 }
 
-export function disableSegmentSelection(viewer: Viewer) {
-	forAllSegmentationUserLayers(viewer, (layer) => {
-		disableSegmentSelectionForLayer(layer);
-	});
-}
-
 export function disableSegmentSelectionForLayer(layer: SegmentationUserLayer) {
 	layer.displayState.segmentSelectionState.set(null);
 	layer.displayState.segmentSelectionState.set = function () {}
@@ -138,4 +134,11 @@ function noRightClickWithoutCtrl(parent: HTMLElement, config: Config) {
 			e.preventDefault(); //TODO remove?
 		}
 	}, true);	
+}
+
+/** @deprecated Handled in Handled in NehubaViewer constructor using RxJs and in semi-togglable way */
+export function disableSegmentSelection(viewer: Viewer) {
+	forAllSegmentationUserLayers(viewer, (layer) => {
+		disableSegmentSelectionForLayer(layer);
+	});
 }
