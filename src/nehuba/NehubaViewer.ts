@@ -1,4 +1,6 @@
 import { Uint64 } from 'neuroglancer/util/uint64';
+import { UserLayer, ManagedUserLayer, MouseSelectionState } from "neuroglancer/layer";
+import { ImageUserLayer } from "neuroglancer/image_user_layer";
 import { SegmentationUserLayer } from "neuroglancer/segmentation_user_layer";
 import { setupDefaultViewer } from 'neuroglancer/ui/default_viewer_setup';
 import { Viewer } from "neuroglancer/viewer";
@@ -41,9 +43,13 @@ export class NehubaViewer {
 		readonly perspectiveZoom: Observable<number>,
 		readonly all: Observable<{position: vec3, orientation: quat, zoom: number, perspectiveZoom: number}>,
 	}
-	/** Attention! Using 'null' for segment id number to indicate that mouse left the segment, so that relevant action
-	 *  could be taken, such as clearing segment name and details in UI. Therefore is it NECESSARY to check value for null before using it. */
-	readonly mouseOverSegment: Observable<{segment: number | null, layer: {name: string, url?:string}}>;
+	/** Attention! Using 'null' values to indicate that mouse left the segment, image or layer, so that relevant action
+	 *  could be taken, such as clearing segment name and details or image greay value in UI. Therefore is it NECESSARY to check value for null before using it. */
+	readonly mouseOver: {
+		readonly segment: Observable<{segment: number | null, layer: {name: string, url?:string}}>,
+		readonly image: Observable<{value: any|null, layer: {name: string, url:string}}>,
+		readonly layer: Observable<{value: any|null, layer: {name: string, url?:string}}>
+	};
 
 	// ******* Plain old callbacks for those who don't want to use RxJs. Why don't you? Not recommended and might be removed without notice *******
 	
@@ -53,17 +59,17 @@ export class NehubaViewer {
 	 *  could be taken, such as clearing segment info in UI. Therefore is it NECESSARY to check segment number for null before using it.
 	 *  @returns {() => void} a function to remove this callback in the future  */
 	addMouseOverSegmentCallback(callback: (segment: number | null, layer?: {name: string, url?:string}) => void) {
-		const s = this.mouseOverSegment.subscribe(it => callback(it.segment, it.layer), this.onError);
+		const s = this.mouseOver.segment.subscribe(it => callback(it.segment, it.layer), this.onError);
 		return () => s.unsubscribe();
 	}
 	/** @deprecated Use addMouseOverSegmentCallback with a condition that a segment number is not 'null' */
 	addMouseEnterSegmentCallback(callback: (segment: number, layer?: {name: string, url?:string}) => void) {
-		const s = this.mouseOverSegment.filter(it => it.segment !== null).subscribe(it => callback(it.segment!, it.layer), this.onError);
+		const s = this.mouseOver.segment.filter(it => it.segment !== null).subscribe(it => callback(it.segment!, it.layer), this.onError);
 		return () => s.unsubscribe();
 	}
 	/** @deprecated Use addMouseOverSegmentCallback with a condition that a segment number is 'null' */
 	addMouseLeaveSegmentsCallback(callback: () => void) {
-		const s = this.mouseOverSegment.filter(it => it.segment === null).subscribe(() => callback(), this.onError);
+		const s = this.mouseOver.segment.filter(it => it.segment === null).subscribe(() => callback(), this.onError);
 		return () => s.unsubscribe();
 	}
 	/** @returns {() => void} a function to remove this callback in the future */
@@ -232,16 +238,15 @@ export class NehubaViewer {
 
 		//Config.disableSegmentSelection 
 		managedLayers.map(l => l.layer).notNull()
+		// .ofType(SegmentationUserLayer)
 		.filter(l => l instanceof SegmentationUserLayer).map(l => l as SegmentationUserLayer)
 		.subscribe(l => {if (this.config.disableSegmentSelection) disableSegmentSelectionForLayer(l)});
 
-		const userLayersWithNames = managedLayers
-		.map(it => {return {name: it.name, value: it.layer}})
-		.filter(it => !!it.value).map(it => {return {name: it.name, userLayer: it.value!}});
+		const userLayersWithNames = managedLayers.let(toUserLayersWithNames);
 		
 		const segmentationLayersWithNames = userLayersWithNames.filter(it => it.userLayer instanceof SegmentationUserLayer).map(it => {return {name: it.name, layer: (it.userLayer as SegmentationUserLayer)}});
 
-		this.mouseOverSegment = segmentationLayersWithNames
+		const segment = segmentationLayersWithNames
 		.unseen(it => it.layer)
 		.flatMap(it => {
 			const name = it.name;
@@ -253,6 +258,17 @@ export class NehubaViewer {
 				}
 			})
 		}).publishReplay(1).refCount(); //Cashing last emission does not make a lot of sense here since we are merging different layers
+
+		const mouseOverLayer = rxify(viewer.layerSelectedValues, s => s)
+		.concatMap(it => {
+			return Observable.from(it.layerManager.managedLayers)
+			.filter(it => it.visible).let(toUserLayersWithNames)
+			.map(l => {return {mouse: it.mouseState, layer: l}})
+		});
+		
+		const image = mouseOverLayer.filter(it => it.layer.userLayer instanceof ImageUserLayer).let(toLayerValues).map(it => {return {...it, layer: {...it.layer, url: it.layer.url!}}});
+		const layer = mouseOverLayer.let(toLayerValues);
+		this.mouseOver = {segment, image, layer};
 	}
 
 	private getSingleSegmentationColors(layer?: {name?: string, url?:string}) {
@@ -300,4 +316,21 @@ export class NehubaViewer {
 		if (!Number.isInteger(n)) this.throwError(`Provided color value ${n} for ${channel} channel is not an integer (0 to 255).`);
 		if (n < 0 || n > 255) this.throwError(`Provided color value ${n} for ${channel} channel is not in expected range of 0 to 255.`);
 	};
+}
+
+function toUserLayersWithNames(managedLayers: Observable<ManagedUserLayer>) {
+	return managedLayers
+	.map(it => {return {name: it.name, value: it.layer}})
+	.filter(it => !!it.value).map(it => {return {name: it.name, userLayer: it.value!}});
+}
+
+function toLayerValues(mouseLayer: Observable<{mouse: MouseSelectionState, layer: {name: string, userLayer: UserLayer}}>) {
+	return mouseLayer
+	.map(it => {
+		const userLayer = it.layer.userLayer;
+		const value = userLayer.getValueAt(it.mouse.position, it.mouse);
+		let url = (userLayer as any).volumePath;
+		if (!url) url = (userLayer as any).parameters.meshSourceUrl;
+		return {value: value === 0 ? 0 : (value ? value : null), layer: {name: it.layer.name, url: url ? url as string : undefined}};
+	});
 }
