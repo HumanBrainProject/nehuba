@@ -114,6 +114,9 @@ export class NehubaMeshLayer extends MeshLayer {
 // TODO Use these in getValuesForClipping() to save some allocations. At the moment left as it is for clarity
 
 export function getValuesForClipping(extra: ExtraRenderContext) {
+	 if (!extra.showSliceViewsCheckboxValue) {
+		 return {navState: mat4.create(), octant: vec4.fromValues(0.0, 0.0, 0.0, 0.0), backFaceColor: vec4.fromValues(0.5, 0.5, 0.5, 1)};
+	 }
     const conf = (extra && extra.config.layout!.useNehubaPerspective!.mesh); //Is it undefined?
 
     const backFaceColor = 

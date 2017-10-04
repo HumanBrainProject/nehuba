@@ -16,6 +16,7 @@ const tempMat4 = mat4.create();
 
 export interface ExtraRenderContext {
   config: Config
+  showSliceViewsCheckboxValue: boolean
   slicesPose: Pose
   perspectiveNavigationState: NavigationState
   /** To be set by our custom renderLayers to indicate that mesh has been rendered. So it is a return value from draw method to avoid changing draw method signature */
@@ -135,6 +136,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
       //Extra context for NehubaMeshLayer
       extra: {
         config: this.config,
+        showSliceViewsCheckboxValue: this.viewer.showSliceViews.value,
         slicesPose: (<any>this.viewer).slicesNavigationState.pose as Pose,
         perspectiveNavigationState: this.viewer.navigationState,
         // meshRendered: false

@@ -102,9 +102,8 @@ export interface Config {
 		}		
 		/** Override background of planar slive views. If not set, then 'dataset.imageBackground' will be used instead. Togglable, but needs relayout to be changed.*/
 		planarSlicesBackground?: vec4
-		/** Hide neuroglancer 'Slices' checkbox in perspective view. It is undesirable to let the user remove images when front octant is removed from the mesh.
-		 *  Togglable, but needs relayout to be changed. */
-		hideSliceViewsCheckbox?: boolean
+		/** Hide neuroglancer 'Slices' checkbox in perspective view. Togglable, but needs relayout to be changed. */
+		hideSliceViewsCheckbox?: boolean // Not essential anymore. Retire?
 		/** Use NehubaPerspective instead of neuroglancer Perspective. Provides the ability to remove the front (or any other) octant of the mesh
 		 *  (if 'globals.useNehubaMeshLayer' or 'globals.useNehubaSingleMeshLayer' is on) and other customisations.
 		 *  By default shift-drag is disabled,    that should be changed because the default behavior should be the same as upstream NG //TODO
