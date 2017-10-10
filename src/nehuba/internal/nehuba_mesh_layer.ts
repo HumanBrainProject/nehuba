@@ -2,7 +2,7 @@ import {ChunkState} from 'neuroglancer/chunk_manager/base';
 import {ChunkManager} from 'neuroglancer/chunk_manager/frontend';
 import {PerspectiveViewRenderContext} from 'neuroglancer/perspective_view/render_layer';
 import {forEachSegmentToDraw, getObjectColor, SegmentationDisplayState3D} from 'neuroglancer/segmentation_display_state/frontend';
-import {mat4, vec4, quat} from 'neuroglancer/util/geom';
+import {mat4, vec3, vec4, quat} from 'neuroglancer/util/geom';
 import {getObjectId} from 'neuroglancer/util/object_id';
 import {GL} from 'neuroglancer/webgl/context';
 import {ShaderBuilder, ShaderModule, ShaderProgram} from 'neuroglancer/webgl/shader';
@@ -137,9 +137,10 @@ export function getValuesForClipping(extra: ExtraRenderContext) {
       }
       
       if (conf.flipRemovedOctant) {
-        octant = vec4.fromValues(0.0, 0.0, -(extra.perspectiveNavigationState.zoomFactor.value), 1.0);
+		  const octantZ = centerToOrigin ? extra.perspectiveNavigationState.zoomFactor.value : 1.0;
+        octant = vec4.fromValues(0.0, 0.0, -(octantZ), 1.0);
 		  let perspectivePose = extra.perspectiveNavigationState.pose;
-		  let pos = pose.position.spatialCoordinates;
+		  let pos = centerToOrigin ? pose.position.spatialCoordinates : vec3.fromValues(0.0, 0.0, 0.0);
         let perspectiveQuat = perspectivePose.orientation.orientation;
         let navQuat = quat.invert(quat.create(), pose.orientation.orientation);
         let resQuat = quat.multiply(quat.create(), navQuat, perspectiveQuat);
