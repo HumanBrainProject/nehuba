@@ -79,6 +79,9 @@ export function disableSegmentSelectionForLayer(layer: SegmentationUserLayer) {
 	layer.displayState.segmentSelectionState.set(null);
 	layer.displayState.segmentSelectionState.set = function () {}
 }
+export function disableSegmentHighlightingForLayer(layer: SegmentationUserLayer) {
+	layer.displayState.segmentSelectionState.isSelected = function() {return false;}
+}
 
 /** !!! func will be called for each layer every time the set of layers changes.
  *  So it might be called many times for the same layer. TODO change function name to reflect that 
@@ -136,7 +139,7 @@ function noRightClickWithoutCtrl(parent: HTMLElement, config: Config) {
 	}, true);	
 }
 
-/** @deprecated Handled in Handled in NehubaViewer constructor using RxJs and in semi-togglable way */
+/** @deprecated Handled in NehubaViewer constructor using RxJs and in semi-togglable way */
 export function disableSegmentSelection(viewer: Viewer) {
 	forAllSegmentationUserLayers(viewer, (layer) => {
 		disableSegmentSelectionForLayer(layer);

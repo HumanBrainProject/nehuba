@@ -7,7 +7,7 @@ import { Viewer } from "neuroglancer/viewer";
 
 import { Config } from "nehuba/config";
 import { patchNeuroglancer } from "nehuba/internal/patches";
-import { configureInstance, configureParent, disableSegmentSelectionForLayer } from "nehuba/internal/hooks";
+import { configureInstance, configureParent, disableSegmentSelectionForLayer, disableSegmentHighlightingForLayer } from "nehuba/internal/hooks";
 import { configSymbol } from "nehuba/internal/nehuba_layout";
 import { vec3, quat } from "nehuba/exports";
 import { NehubaSegmentColorHash } from "nehuba/internal/nehuba_segment_color";
@@ -189,6 +189,9 @@ export class NehubaViewer {
 		(this.ngviewer.display.container as any)[configSymbol] = this._config;
 	}
 
+	private _createdSegmentationUserLayers: Observable<SegmentationUserLayer>;
+	private get createdSegmentationUserLayers() { return this._createdSegmentationUserLayers.unseen(); }
+
 	private constructor(viewer: Viewer, config: Config, public errorHandler?: (error: Error) => void) {
 		this.ngviewer = viewer;
 		this._config = config;
@@ -237,10 +240,12 @@ export class NehubaViewer {
 		.concatMap(it => Observable.from(it.managedLayers));
 
 		//Config.disableSegmentSelection 
-		managedLayers.map(l => l.layer).notNull()
+		this._createdSegmentationUserLayers = managedLayers.map(l => l.layer).notNull()
 		// .ofType(SegmentationUserLayer)
-		.filter(l => l instanceof SegmentationUserLayer).map(l => l as SegmentationUserLayer)
-		.subscribe(l => {if (this.config.disableSegmentSelection) disableSegmentSelectionForLayer(l)});
+		.filter(l => l instanceof SegmentationUserLayer).map(l => l as SegmentationUserLayer);
+		
+		this.createdSegmentationUserLayers.subscribe(l => {if (this.config.disableSegmentSelection) disableSegmentSelectionForLayer(l)});
+		this.createdSegmentationUserLayers.subscribe(l => {if (this.config.disableSegmentHighlighting) disableSegmentHighlightingForLayer(l)});
 
 		const userLayersWithNames = managedLayers.let(toUserLayersWithNames);
 		

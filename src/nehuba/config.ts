@@ -69,9 +69,12 @@ export interface Config {
 	 *  user navigation in case NehubaPerspective is not used.
 	 *  Currently there is no way to 'undo' this restriction for the provided Viewer instance. Thus not togglable. (This could be changed if needed)*/
 	restrictUserNavigation?: boolean
-	/** Disables 'selection' when mouse hovers over a segment. Currently is only used by BigBrain preview, because with 2 large segments this selection 
-	 *  is just annoying flickering.	Semi-togglable, meaning that toggling will affect only freshly added layers, but not the ones already present. */
+	 /** Disables 'selection' when mouse hovers over a segment. Was only used by BigBrain preview before `disableSegmentSelection` was implemented.
+	  *  Currently not used and probably should be deprecated. Semi-togglable, meaning that toggling will affect only freshly added layers, but not the ones already present. */
 	disableSegmentSelection?: boolean
+	/** Disables 'Highlighting' when mouse hovers over a segment. Currently is only used by BigBrain preview, because with 2 large segments this highlighting 
+	 *  is just annoying flickering.	Semi-togglable, meaning that toggling will affect only freshly added layers, but not the ones already present. */
+	disableSegmentHighlighting?: boolean
 
 	/** Neuroglancer state plus additional metadata neseccary to properly display the dataset. 
 	 *  Eventually might be stored in Knowledge Graph next to the actual data.	*/
@@ -103,7 +106,7 @@ export interface Config {
 		/** Override background of planar slive views. If not set, then 'dataset.imageBackground' will be used instead. Togglable, but needs relayout to be changed.*/
 		planarSlicesBackground?: vec4
 		/** Hide neuroglancer 'Slices' checkbox in perspective view. Togglable, but needs relayout to be changed. */
-		hideSliceViewsCheckbox?: boolean // Not essential anymore. Retire?
+		hideSliceViewsCheckbox?: boolean
 		/** Use NehubaPerspective instead of neuroglancer Perspective. Provides the ability to remove the front (or any other) octant of the mesh
 		 *  (if 'globals.useNehubaMeshLayer' or 'globals.useNehubaSingleMeshLayer' is on) and other customisations.
 		 *  By default shift-drag is disabled,    that should be changed because the default behavior should be the same as upstream NG //TODO
