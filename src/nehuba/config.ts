@@ -182,7 +182,11 @@ export interface Config {
 				/** Clip part of the mesh based on intersection of slice views. Should be true, otherwise "3d view" will look broken. Togglable (needs redraw).*/
 				removeBasedOnNavigation?: boolean
 				/** Always change removed octant to the front octant when the user changes orientation of the perspective or the orientation of the slice views. Togglable (needs redraw).*/
-				flipRemovedOctant?: boolean
+				flipRemovedOctant?: boolean,
+				/** If meshes attached to segmentation layer are just parts of cortical surface parcellation instead of being full volumetric segment meshes
+				 *  ("patch blanket" mode used for JuBrain), then all of them should be displayed at all times and clipped when front octant is removed, 
+				 *  regardless of selected segments and "Slices" checkbox. Togglable (needs redraw). */
+				surfaceParcellation?: boolean
 			}
 			/** Center perspective view at the center of the brain instead of intersection point of slice views. Togglable (needs redraw).*/
 			centerToOrigin?: boolean

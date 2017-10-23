@@ -6,8 +6,13 @@ import {mat4, vec3, vec4, quat} from 'neuroglancer/util/geom';
 import {getObjectId} from 'neuroglancer/util/object_id';
 import {GL} from 'neuroglancer/webgl/context';
 import {ShaderBuilder, ShaderModule, ShaderProgram} from 'neuroglancer/webgl/shader';
+import {Uint64Set} from 'neuroglancer/uint64_set';
+import {Uint64} from 'neuroglancer/util/uint64';
+import {HashSetUint64} from 'neuroglancer/gpu_hash/hash_table';
+import {RPC, RpcId, SharedObject} from "neuroglancer/worker_rpc";
 
 import { MeshShaderManager, MeshLayer, MeshSource } from "neuroglancer/mesh/frontend";
+import { Disposer } from "neuroglancer/util/disposable";
 
 import { ExtraRenderContext } from "nehuba/internal/nehuba_perspective_panel";
 
@@ -35,6 +40,11 @@ if (vNavPos.x > 0.0 && vNavPos.y > 0.0 && vNavPos.z > 0.0) {
 }
 		`);
 	}
+	setValuesForClipping(gl: GL, shader: ShaderProgram, values: ValuesForClipping) {
+		this.setNavState(gl, shader, values.navState);
+		this.setOctant(gl, shader, values.octant);
+		this.setBackFaceColor(gl, shader, values.backFaceColor);
+	}
 	setNavState(gl: GL, shader: ShaderProgram, navMat: mat4) {
 		gl.uniformMatrix4fv(shader.uniform('uNavState'), false, navMat);
 	}
@@ -60,7 +70,6 @@ export class NehubaMeshLayer extends MeshLayer {
 		this.meshShaderManager = new NehubaMeshShaderManager();
 	}	
 
-
 	draw(renderContext: PerspectiveViewRenderContext & { extra: ExtraRenderContext }) { //What if called without extra? (by normal ng layer)
 		if (!renderContext.emitColor && renderContext.alreadyEmittedPickID) {
 			// No need for a separate pick ID pass.
@@ -77,11 +86,11 @@ export class NehubaMeshLayer extends MeshLayer {
 		shader.bind();
 		meshShaderManager.beginLayer(gl, shader, renderContext);
 
-		if (!renderContext.extra) console.error('Bad configuration. Julich mesh layer is used by neuroglancer code.');
-		const values = getValuesForClipping(renderContext.extra);
-		meshShaderManager.setNavState(gl, shader, values.navState);
-		meshShaderManager.setOctant(gl, shader, values.octant);
-		meshShaderManager.setBackFaceColor(gl, shader, values.backFaceColor);
+		if (!renderContext.extra) console.error('Bad configuration. Nehuba mesh layer is used by neuroglancer code.');
+		const valuesForClipping = getValuesForClipping(renderContext.extra);
+		meshShaderManager.setValuesForClipping(gl, shader, valuesForClipping);
+		const conf = (renderContext.extra && renderContext.extra.config.layout!.useNehubaPerspective!.mesh); //Is it undefined?
+		const surfaceParcellation = conf && conf.surfaceParcellation;
 
 		let objectChunks = this.source.fragmentSource.objectChunks;
 
@@ -89,12 +98,32 @@ export class NehubaMeshLayer extends MeshLayer {
 
 		const objectToDataMatrix = this.displayState.objectToDataTransform.transform;
 
-		forEachSegmentToDraw(displayState, objectChunks, (rootObjectId, objectId, fragments) => {
+		const {visibleSegments} = displayState
+		let visibleMeshes: Uint64Set;
+		if (visibleSegments instanceof VisibleSegmentsWrapper) {
+			if (!surfaceParcellation && !renderContext.extra.showSliceViewsCheckboxValue) {
+				visibleMeshes = visibleSegments.size === 0 ? visibleSegments.getLoadedMeshes() : visibleSegments;
+			} else visibleMeshes = visibleSegments.getLoadedMeshes();
+		} else visibleMeshes = visibleSegments;
+		const displayStateProxy = new Proxy<SegmentationDisplayState3D>(displayState, {
+			get: function(target: any, p: PropertyKey) {
+				if (p === 'visibleSegments') return visibleMeshes;
+				const res = target[p];
+				if (typeof res === 'function') return res.bind(target);
+				else return res;
+			}
+		});		
+
+		forEachSegmentToDraw(displayStateProxy, objectChunks, (rootObjectId, objectId, fragments) => {
 			if (renderContext.emitColor) {
 				meshShaderManager.setColor(gl, shader, getObjectColor(displayState, rootObjectId, alpha));
 			}
 			if (renderContext.emitPickID) {
 				meshShaderManager.setPickID(gl, shader, pickIDs.registerUint64(this, objectId));
+			}
+			if (renderContext.extra.showSliceViewsCheckboxValue && visibleSegments instanceof VisibleSegmentsWrapper && !surfaceParcellation) {
+				if (visibleSegments.has(rootObjectId))	meshShaderManager.setValuesForClipping(gl, shader, NoClipping);
+				else meshShaderManager.setValuesForClipping(gl, shader, valuesForClipping);
 			}
 			meshShaderManager.beginObject(gl, shader, objectToDataMatrix);
 			for (let fragment of fragments) {
@@ -113,10 +142,19 @@ export class NehubaMeshLayer extends MeshLayer {
 // const tempMat4 = mat4.create();
 // TODO Use these in getValuesForClipping() to save some allocations. At the moment left as it is for clarity
 
-export function getValuesForClipping(extra: ExtraRenderContext) {
+export interface ValuesForClipping {
+	navState: mat4;
+	octant: vec4;
+	backFaceColor: vec4;	
+}
+
+export const NoClipping: ValuesForClipping = {navState: mat4.create(), octant: vec4.fromValues(0.0, 0.0, 0.0, 0.0), backFaceColor: vec4.fromValues(0.5, 0.5, 0.5, 1)};
+
+export function getValuesForClipping(extra: ExtraRenderContext): ValuesForClipping {
 	 if (!extra.showSliceViewsCheckboxValue) {
-		 return {navState: mat4.create(), octant: vec4.fromValues(0.0, 0.0, 0.0, 0.0), backFaceColor: vec4.fromValues(0.5, 0.5, 0.5, 1)};
+		 return NoClipping;
 	 }
+	 const centerToOrigin = (extra && extra.config.layout!.useNehubaPerspective!.centerToOrigin);
     const conf = (extra && extra.config.layout!.useNehubaPerspective!.mesh); //Is it undefined?
 
     const backFaceColor = 
@@ -153,4 +191,114 @@ export function getValuesForClipping(extra: ExtraRenderContext) {
       }
     }
     return {navState, octant, backFaceColor};
+}
+
+export class VisibleSegmentsWrapper extends SharedObject implements Uint64Set {
+	private wrapped: Uint64Set
+	private localHashTable = new HashSetUint64();
+	constructor(visibleSegments: Uint64Set) {
+		super();
+		this.wrapped = visibleSegments;
+		for (const x of this.wrapped.hashTable) {
+			this.localHashTable.add(x);
+		}
+	}
+	
+	setMeshesToLoad(meshes: number[]) {
+		this.wrapped.clear();
+		meshes.forEach(n => this.wrapped.add(new Uint64(n)));		
+	}
+
+	getLoadedMeshes() {
+		return this.wrapped;
+	}
+
+	// get hashTable() { return this.wrapped.hashTable }
+	get hashTable() { return this.localHashTable }
+	get changed() { return this.wrapped.changed }
+
+	add_(x: Uint64): boolean {	x; throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+  
+	add(x: Uint64) {
+		// if (this.add_(x)) {
+		if (this.localHashTable.add(x)) {
+		// //   let {rpc} = this;
+		// //   if (rpc) {
+		// // 	 rpc.invoke('Uint64Set.add', {'id': this.rpcId, 'value': x});
+		// //   }
+		  this.changed.dispatch(x, true);
+		}
+	}
+  
+	has(x: Uint64) {
+		return this.localHashTable.has(x);
+	}
+  
+	[Symbol.iterator]() {
+		return this.localHashTable.keys();
+	}
+  
+	delete_(x: Uint64): boolean {	x;	throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+  
+	delete(x: Uint64) {
+		// if (this.delete_(x)) {
+		if (this.localHashTable.delete(x)) {
+		// //   let {rpc} = this;
+		// //   if (rpc) {
+		// // 	 rpc.invoke('Uint64Set.delete', {'id': this.rpcId, 'value': x});
+		// //   }
+		  this.changed.dispatch(x, false);
+		}
+	}
+  
+	get size() {
+		return this.localHashTable.size;
+	}
+  
+	clear() {
+		if (this.localHashTable.clear()) {
+		// //   let {rpc} = this;
+		// //   if (rpc) {
+		// // 	 rpc.invoke('Uint64Set.clear', {'id': this.rpcId});
+		// //   }
+		  this.changed.dispatch(null, false);
+		}
+	}
+  
+	toJSON() {
+		let result = new Array<string>();
+		for (let id of this) {
+		  result.push(id.toString());
+		}
+		return result;
+	}  
+
+	get rpcId(): RpcId|null { return this.wrapped.rpcId;/* throw new Error('Unexpected member access of VisibleSegmentsWrapper'); */ }
+
+	
+	// ******* Members of SharedObject, not expected to be called on wrapper *******
+	get rpc(): RPC|null { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	set rpc(arg: RPC|null) { arg;/* ignore */ }
+	set rpcId(arg: RpcId|null) { arg;/* ignore */ }
+	get isOwner(): boolean|undefined { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	get unreferencedGeneration(): number { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	get referencedGeneration(): number { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	initializeSharedObject(rpc: RPC, rpcId = rpc.newId()) { rpcId; throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	initializeCounterpart(rpc: RPC, options: any = {}) { rpc; options; throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	addCounterpartRef():{'id': number | null;	'gen': number;} { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	ownerDispose() { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	counterpartRefCountReachedZero(generation: number) { generation; throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	get RPC_TYPE_ID(): string { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	// ******* Members of RefCounted, not expected to be called on wrapper *******
+	set refCount(n: number) { n;/* ignore */ }
+	get refCount(): number { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	get wasDisposed(): boolean|undefined { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	addRef(): this { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	dispose() { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	refCountReachedZero() { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	disposed() { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	registerDisposer<T extends Disposer>(f: T): T { f; throw new Error('Unexpected member access of VisibleSegmentsWrapper'); } //return this.wrapped.registerDisposer(f);
+	unregisterDisposer<T extends Disposer>(f: T): T { f; throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	registerEventListener(target: EventTarget, eventType: string, listener: any, arg?: any) { target; eventType; listener; arg; throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	registerCancellable<T extends{cancel: () => void}>(cancellable: T): T { cancellable; throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
 }

@@ -11,9 +11,10 @@ import { configureInstance, configureParent, disableSegmentSelectionForLayer, di
 import { configSymbol } from "nehuba/internal/nehuba_layout";
 import { vec3, quat } from "nehuba/exports";
 import { NehubaSegmentColorHash } from "nehuba/internal/nehuba_segment_color";
+import { VisibleSegmentsWrapper } from 'nehuba/internal/nehuba_mesh_layer';
 import { rxify } from "nehuba/internal/tools";
 
-import { Observable } from "@reactivex/rxjs";
+import { Observable/* , Subscription */ } from "@reactivex/rxjs";
 import "nehuba/Rx";
 
 /** Create viewer */
@@ -151,6 +152,28 @@ export class NehubaViewer {
 	 *  @throws Will throw an error if custom segment color support is not enabled in {config.globals} (not routed to {errorHandler})*/
 	batchAddAndUpdateSegmentColors(colorMap: Map<number, {red:number, green: number, blue: number}>, layer?: {name?: string, url?:string}) {
 		this.getSingleSegmentationColors(layer).batchUpdate(colorMap);
+	}
+
+	// private meshesToLoadSubscription?: Subscription;
+	/** Takes over control over segment meshes loaded by background thread. All (and only) of the meshes from provided array are 
+	 *  loaded by the backgroung thread. This set of meshes will be used by {NehubaMeshLayer} as "All meshes", e.g. displayed in 3d view
+	 *  when front octant is removed or when "Slices" checkbox is unchecked and no segment is selected. In the former case {NehubaMeshLayer} will
+	 *  also start to display full meshes (without clipping in the front octant) for selected segments. 
+	 *  (Exceptions is when {config.layout.useNehubaPerspective.mesh.surfaceParcellation} is true, then all meshes are displayed and clipped 
+	 *  in the front octant at all times regardless of selected segments and "Slices" checkbox)
+	 *  If particular mesh is not present in the provided array, it will not be loaded and displayed even if corresponding segment is selected.
+	 *  Applied to currently loaded segmentation layer. Needs to be called again when layers are re-added, for example if "Reset" button is pressed, 
+	 *  new URL copy-pasted by the user or `restoreState` is called on ngviewer programmatically)
+	 *  @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria */
+	setMeshesToLoad(meshes: number[], layer?: {name?: string, url?:string}) {
+		// if (this.meshesToLoadSubscription) this.meshesToLoadSubscription.unsubscribe();
+		// const s = this.createdSegmentationUserLayers.subscribe(l => {
+			const { displayState } = this.getSingleSegmentation(layer); // l;
+			if (!(displayState.visibleSegments instanceof VisibleSegmentsWrapper)) displayState.visibleSegments = new VisibleSegmentsWrapper(displayState.visibleSegments);
+			(displayState.visibleSegments as VisibleSegmentsWrapper).setMeshesToLoad(meshes);
+		// });
+		// this.meshesToLoadSubscription = s;
+		// return () => s.unsubscribe(); //return subscription?
 	}
 
 	relayout() {

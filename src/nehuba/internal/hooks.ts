@@ -11,6 +11,7 @@ export function configureInstance(viewer: Viewer, config: Config) {
 	
 	// !!! Depends on complementary patch in `patches.ts`, so don't rxify it just yet (it's global)
 	if (config.globals && config.globals.useCustomSegmentColors) useNehubaCustomSegmentColors(viewer);
+	// useNehubaIndependentSegmentMeshes(viewer); //Handled in NehubaViewer
 }
 
 export function configureParent(parent: HTMLElement, config: Config) {
@@ -74,6 +75,14 @@ function useNehubaCustomSegmentColors(viewer: Viewer) {
 		if (!(displayState.segmentColorHash instanceof NehubaSegmentColorHash)) displayState.segmentColorHash = NehubaSegmentColorHash.from(displayState.segmentColorHash);
 	})
 }
+
+// Handled in NehubaViewer
+// function useNehubaIndependentSegmentMeshes(viewer: Viewer) {
+// 	forAllSegmentationUserLayers(viewer, layer => {
+// 		const { displayState } = layer;
+// 		if (!(displayState.visibleSegments instanceof VisibleSegmentsWrapper)) displayState.visibleSegments = new VisibleSegmentsWrapper(displayState.visibleSegments);
+// 	})
+// }
 
 export function disableSegmentSelectionForLayer(layer: SegmentationUserLayer) {
 	layer.displayState.segmentSelectionState.set(null);
