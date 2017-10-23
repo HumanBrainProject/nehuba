@@ -116,28 +116,39 @@ export class NehubaViewer {
 	}
 	/** Attention! Due to how neuroglacner works, empty array corresponds to *ALL* the segments being visible. 
 	 *  @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria */
-	getShownSegments(layer?: {name?: string, url?:string}) {
+	getShownSegmentsNow(layer?: {name?: string, url?:string}) {
 		return Array.from(this.getSingleSegmentation(layer).displayState.visibleSegments, this.segmentToNumber);
 	}
-	/** @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria */
-	/** @throws Will throw an error if custom segment color support is not enabled in {config.globals} (not routed to {errorHandler})*/
-	/** @throws Will throw an error if rgb values are not integers in 0..255 range */
+	/** Attention! Due to how neuroglacner works, empty array corresponds to *ALL* the segments being visible. 
+	 *  Returned observable terminates when currently loaded segmentation layer is disposed and needs to be acquired again 
+	 *  by calling this method when layers are re-added, for example if "Reset" button is pressed, 
+	 *  new URL copy-pasted by the user or `restoreState` is called on ngviewer programmatically)
+	 *  @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria */
+	getShownSegmentsObservable(layer?: {name?: string, url?:string}) {
+		const l = this.getSingleSegmentation(layer); //Looks like `visibleSegments` is not properly disposed by NG, so we use the layer as RefCounted for rxify
+		return rxify({s: l.displayState.visibleSegments, r: l}, it => Array.from(it, this.segmentToNumber));
+	}
+	/** @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria
+	 *  @throws Will throw an error if custom segment color support is not enabled in {config.globals} (not routed to {errorHandler})
+	 *  @throws Will throw an error if rgb values are not integers in 0..255 range */
 	setSegmentColor(segmentId: number, color: {red:number, green: number, blue: number}, layer?: {name?: string, url?:string}) {
 		this.checkRGB(color);
 		this.getSingleSegmentationColors(layer).setSegmentColor(segmentId, color.red, color.green, color.blue);
 	}
-	/** @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria */
-	/** @throws Will throw an error if custom segment color support is not enabled in {config.globals} (not routed to {errorHandler})*/
+	/** @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria
+	 *  @throws Will throw an error if custom segment color support is not enabled in {config.globals} (not routed to {errorHandler})*/
 	unsetSegmentColor(segmentId: number, layer?: {name?: string, url?:string}) {
 		this.getSingleSegmentationColors(layer).unsetSegmentColor(segmentId);
 	}
-	/** @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria */
-	/** @throws Will throw an error if custom segment color support is not enabled in {config.globals} (not routed to {errorHandler})*/
+	/** @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria
+	 *  @throws Will throw an error if custom segment color support is not enabled in {config.globals} (not routed to {errorHandler})*/
 	clearCustomSegmentColors(layer?: {name?: string, url?:string}) {
 		this.getSingleSegmentationColors(layer).clearCustomSegmentColors();
 	}
-	/** @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria */
-	/** @throws Will throw an error if custom segment color support is not enabled in {config.globals} (not routed to {errorHandler})*/
+	/** Applied to currently loaded segmentation layer. Needs to be called again when layers are re-added, for example if "Reset" button is pressed, 
+	 *  new URL copy-pasted by the user or `restoreState` is called on ngviewer programmatically)
+    *  @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria
+	 *  @throws Will throw an error if custom segment color support is not enabled in {config.globals} (not routed to {errorHandler})*/
 	batchAddAndUpdateSegmentColors(colorMap: Map<number, {red:number, green: number, blue: number}>, layer?: {name?: string, url?:string}) {
 		this.getSingleSegmentationColors(layer).batchUpdate(colorMap);
 	}

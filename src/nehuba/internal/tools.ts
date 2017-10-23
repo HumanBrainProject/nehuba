@@ -1,10 +1,10 @@
-import { NullarySignal } from 'neuroglancer/util/signal';
+import { Signal, NullarySignal } from 'neuroglancer/util/signal';
 import { RefCounted } from 'neuroglancer/util/disposable';
 
 import { Observable, Observer} from "@reactivex/rxjs";
 
-export function rxify<R, T extends ({changed: NullarySignal} & RefCounted)>(sig: T, f: (t: T) => R, options?: {prefire?: boolean, share?: boolean}): Observable<R>;
-export function rxify<R, T extends {changed: NullarySignal}>(sig: {s: T, r: RefCounted}, f: (t: T) => R, options?: {prefire?: boolean, share?: boolean}): Observable<R>;
+export function rxify<Callable extends Function, R, T extends ({changed: Signal<Callable>} & RefCounted)>(sig: T, f: (t: T) => R, options?: {prefire?: boolean, share?: boolean}): Observable<R>;
+export function rxify<Callable extends Function, R, T extends {changed: Signal<Callable>}>(sig: {s: T, r: RefCounted}, f: (t: T) => R, options?: {prefire?: boolean, share?: boolean}): Observable<R>;
 export function rxify<R, T extends {changed: NullarySignal}>(sig: (T & RefCounted) | {s: T, r: RefCounted}, f: (t: T) => R, options?: {prefire?: boolean, share?: boolean}): Observable<R> {
 	const opts = {...{prefire: true, share: true}, ...options}
 	const s = (sig instanceof RefCounted) ? sig : sig.s;
