@@ -23,10 +23,11 @@ The long-term goal is to provide ready to use, compiled and easily npm installab
 	- `npm link neuroglancer`. This will create a symlink in your `node_modules` to the symlink created at step 3.
 	- `npm link nehuba`
 	- `npm i` to install the rest of dependencies
-7. In the `third_party` directory of your project you will find a symlink to neuroglancer source. On linux it should just work. On windows you can delete it and create symlink with (from within third_party): `mklink /d neuroglancer ..\node_modules\neuroglancer\src\neuroglancer`. Use `/j` instead of `/d` if you don't have admin rights to your machine. Now create similar link to nehuba sources. (for windows `mklink /d nehuba ..\node_modules\nehuba\src\nehuba` and if you use linux you know what to do ;-)
-8. Add `"nehuba/*": ["third_party/nehuba/*"]` to the `paths` section of `tsconfig.json`
-9. It's all set and ready to go. You can start the dev server by `npm run dev-server` and compile your project using `npm run build` or `npm run build-min`.
-10. You can discard the example code from neuroglancer if you wish. Just replace `main.ts` with the one from `neuroglancer/src` and delete other source files in `{you project}/src/{your project sources}`
+7. In the `third_party` directory of your project you will find a symlink to neuroglancer source. On linux it should just work. On windows you can delete it and create symlink with (from within third_party): `mklink /d neuroglancer ..\node_modules\neuroglancer\src\neuroglancer`. Use `/j` instead of `/d` if you don't have admin rights to your machine.
+8. Now create similar link to nehuba sources. (for windows `mklink /d nehuba ..\node_modules\nehuba\src\nehuba` and if you use linux you know what to do ;-)
+9. Add `"nehuba/*": ["third_party/nehuba/*"]` to the `paths` section of `tsconfig.json`
+10. It's all set and ready to go. You can start the dev server by `npm run dev-server` and compile your project using `npm run build` or `npm run build-min`.
+11. You can discard the example code from neuroglancer if you wish. Just replace `main.ts` with the one from `neuroglancer/src` and delete other source files in `{you project}/src/{your project sources}`
 
 ### Updating
 
