@@ -6,15 +6,32 @@ import {SliceViewPanel} from 'neuroglancer/sliceview/panel';
 import {TrackableBoolean} from 'neuroglancer/trackable_boolean';
 import {RefCounted} from 'neuroglancer/util/disposable';
 import {removeChildren} from 'neuroglancer/util/dom';
-import {vec3, quat} from 'neuroglancer/util/geom';
+import {/* vec3, */ quat} from 'neuroglancer/util/geom';
 
-import { SliceViewViewerState, ViewerUIState, getCommonViewerState } from 'neuroglancer/viewer_layouts.ts';
+import { SliceViewViewerState, ViewerUIState, getCommonViewerState } from 'neuroglancer/viewer_layouts';
 import { Viewer } from 'neuroglancer/viewer';
-import { startRelativeMouseDrag } from 'neuroglancer/util/mouse_drag';
+// import { startRelativeMouseDrag } from 'neuroglancer/util/mouse_drag';
 
 import { NehubaPerspectivePanel } from "nehuba/internal/nehuba_perspective_panel";
 import { restrictUserNavigation } from "nehuba/internal/hooks";
 import { Config } from "nehuba/config";
+
+//TODO Following 2 functions are copy-pasted from neuroglancer/viewer_layout.ts because they are not exported
+//TODO Submit PR to export them in the follow-up of PR #44
+function getCommonPerspectiveViewerState(viewer: ViewerUIState) {
+  return {
+    ...getCommonViewerState(viewer),
+    navigationState: viewer.perspectiveNavigationState,
+    inputEventMap: viewer.inputEventBindings.perspectiveView,
+  };
+}
+function getCommonSliceViewerState(viewer: ViewerUIState) {
+  return {
+    ...getCommonViewerState(viewer),
+    navigationState: viewer.navigationState,
+    inputEventMap: viewer.inputEventBindings.sliceView,
+  };
+}
 
 const sliceQuat = Symbol('SliceQuat');
 /**
@@ -55,7 +72,7 @@ export const configSymbol = Symbol('config');
  * 
  * This class started as a copy of FourPanelLayout from https://github.com/google/neuroglancer/blob/9c78cd512a722f3fe9ed097155b6f64f48b8d1c9/src/neuroglancer/viewer_layouts.ts
  * Copied on 19.07.2017 (neuroglancer master commit 9c78cd512a722f3fe9ed097155b6f64f48b8d1c9) and renamed.
- * Latest commit to viewer_layouts.ts 736b20335d4349d8a252bd37e33d343cb73294de on May 21, 2017 "feat: Add Viewer-level prefetching support."
+ * Latest commit to include viewer_layouts.ts c1133ca359247f6e29d8996add48b1def564da6b on Oct 30, 2017 "refactor(python): factor out run_in_new_thread function that returns a Future"
  * Any changes in upstream version since then must be manually applied here with care.
  */
 export class NehubaLayout extends RefCounted {
@@ -98,7 +115,6 @@ export class NehubaLayout extends RefCounted {
 	 let sliceViews = quats.map(q => { return makeSliceViewNhb(viewer, q); });
 
     const makePerspective: L.Handler = element => {
-      element.className = 'gllayoutcell noselect';
 
       if (layoutConfig.useNehubaPerspective) {
         const conf = layoutConfig.useNehubaPerspective;
@@ -130,39 +146,33 @@ export class NehubaLayout extends RefCounted {
     let {display} = viewer;
 
     const perspectiveViewerState = {
-      ...getCommonViewerState(viewer),
-      navigationState: viewer.perspectiveNavigationState,
+      ...getCommonPerspectiveViewerState(viewer),
       showSliceViews: viewer.showPerspectiveSliceViews,
       showSliceViewsCheckbox: !layoutConfig.hideSliceViewsCheckbox,
       slicesNavigationState: viewer.navigationState //!!! Passed down to NehubaPerspectivePanel in the 'untyped' way. Was already deleted once by mistake. Be careful.
     };
 
     const sliceViewerState = {
-      ...getCommonViewerState(viewer),
-      navigationState: viewer.navigationState,
+      ...getCommonSliceViewerState(viewer),
       showScaleBar: viewer.showScaleBar,
     };
 
     const sliceViewerStateWithoutScaleBar = {
-      ...getCommonViewerState(viewer),
-      navigationState: viewer.navigationState,
+      ...getCommonSliceViewerState(viewer),
       showScaleBar: new TrackableBoolean(false, false),
     };
     let mainDisplayContents = [
       L.withFlex(1, L.box('column', [
         L.withFlex(1, L.box('row', [
           L.withFlex(1, element => {
-            element.className = 'gllayoutcell noselect';
             this.registerDisposer(configureSliceViewPanel(new SliceViewPanel(display, element, sliceViews[0], sliceViewerState)));
           }),
           L.withFlex(1, element => {
-            element.className = 'gllayoutcell noselect';
             this.registerDisposer(configureSliceViewPanel(new SliceViewPanel(display, element, sliceViews[1], sliceViewerStateWithoutScaleBar)));
           })
         ])),
         L.withFlex(1, L.box('row', [
           L.withFlex(1, element => {
-            element.className = 'gllayoutcell noselect';
             this.registerDisposer(configureSliceViewPanel(new SliceViewPanel(display, element, sliceViews[2], sliceViewerStateWithoutScaleBar)));
 			 }),
 			 L.withFlex(1, makePerspective)
@@ -179,38 +189,44 @@ export class NehubaLayout extends RefCounted {
   }
 }
 
+//TODO TODO Broken by NG update, needs to be reimplemented. 
+// approach 1. Remove and replace action listener from SliceView. Might work only in chrome or not at all https://stackoverflow.com/questions/26845535/removeeventlistener-without-knowing-the-function
+// approach 2. Add another action listener like NG and remap input
+
 // ****** !!! Needs attention !!! ******  Even so the change is minimal - the code is forked/copy-pasted from NG and needs to be updated if changed upstream.
 // The startDragViewport function is copied from https://github.com/google/neuroglancer/blob/9c78cd512a722f3fe9ed097155b6f64f48b8d1c9/src/neuroglancer/sliceview/panel.ts
 // Copied on 19.07.2017 (neuroglancer master commit 9c78cd512a722f3fe9ed097155b6f64f48b8d1c9).
 // Latest commit to panel.ts 3d08828cc337dce1e9bba454f0ef00073697b2e0 on Jun 6, 2017 " fix: make SliceViewPanel and PerspectivePanel resize handling more ro…"
 // Any changes in upstream version since then must be manually applied here with care.
 function disableFixedPointInRotation(slice: SliceViewPanel, config: Config) {
-	slice.startDragViewport = function (this: SliceViewPanel, e: MouseEvent) {
-    let {mouseState} = this.viewer;
-    if (mouseState.updateUnconditionally()) {
-		//⇊⇊⇊ Our change is only here ⇊⇊⇊
-      let initialPosition = config.rotateAtViewCentre ? undefined : vec3.clone(mouseState.position);
-		//⇈⇈⇈ Our change is only here ⇈⇈⇈
+	// slice.startDragViewport = function (this: SliceViewPanel, e: MouseEvent) {
+  //   let {mouseState} = this.viewer;
+  //   if (mouseState.updateUnconditionally()) {
+	// 	//⇊⇊⇊ Our change is only here ⇊⇊⇊
+  //     let initialPosition = config.rotateAtViewCentre ? undefined : vec3.clone(mouseState.position);
+	// 	//⇈⇈⇈ Our change is only here ⇈⇈⇈
 
-      startRelativeMouseDrag(e, (event, deltaX, deltaY) => {
-        let {position} = this.viewer.navigationState;
-        if (event.shiftKey) {
-          let {viewportAxes} = this.sliceView;
-          this.viewer.navigationState.pose.rotateAbsolute(
-              viewportAxes[1], deltaX / 4.0 * Math.PI / 180.0, initialPosition);
-          this.viewer.navigationState.pose.rotateAbsolute(
-              viewportAxes[0], deltaY / 4.0 * Math.PI / 180.0, initialPosition);
-        } else {
-          let pos = position.spatialCoordinates;
-          vec3.set(pos, deltaX, deltaY, 0);
-          vec3.transformMat4(pos, pos, this.sliceView.viewportToData);
-          position.changed.dispatch();
-        }
-        // 'restrictUserNavigation' is implemented in hooks.ts
-        // But maybe we can stop the mouse from moving beyond the boundaries if we implement it here?
-      });
-    }
-	};
+  //     startRelativeMouseDrag(e, (event, deltaX, deltaY) => {
+  //       let {position} = this.viewer.navigationState;
+  //       if (event.shiftKey) {
+  //         let {viewportAxes} = this.sliceView;
+  //         this.viewer.navigationState.pose.rotateAbsolute(
+  //             viewportAxes[1], deltaX / 4.0 * Math.PI / 180.0, initialPosition);
+  //         this.viewer.navigationState.pose.rotateAbsolute(
+  //             viewportAxes[0], deltaY / 4.0 * Math.PI / 180.0, initialPosition);
+  //       } else {
+  //         let pos = position.spatialCoordinates;
+  //         vec3.set(pos, deltaX, deltaY, 0);
+  //         vec3.transformMat4(pos, pos, this.sliceView.viewportToData);
+  //         position.changed.dispatch();
+  //       }
+  //       // 'restrictUserNavigation' is implemented in hooks.ts
+  //       // But maybe we can stop the mouse from moving beyond the boundaries if we implement it here?
+  //     });
+  //   }
+  // };
+  
+  config;
 
   return slice;
 }
