@@ -42,7 +42,8 @@ export class NehubaViewer {
 		readonly sliceZoom: Observable<number>,
 		readonly full: Observable<{position: vec3, orientation: quat, zoom: number}>,
 		readonly perspectiveZoom: Observable<number>,
-		readonly all: Observable<{position: vec3, orientation: quat, zoom: number, perspectiveZoom: number}>,
+		readonly perspectiveOrientation: Observable<quat>,
+		readonly all: Observable<{position: vec3, orientation: quat, zoom: number, perspectiveZoom: number, perspectiveOrientation: quat}>,
 	}
 	/** Attention! Using 'null' values to indicate that mouse left the segment, image or layer, so that relevant action
 	 *  could be taken, such as clearing segment name and details or image greay value in UI. Therefore is it NECESSARY to check value for null before using it. */
@@ -248,13 +249,15 @@ export class NehubaViewer {
 			orientation: rxify(nav.pose.orientation, o => quat.clone(o.orientation)),
 			sliceZoom: rxify({s: nav.zoomFactor, r: nav}, z => z.value),
 			perspectiveZoom: rxify({s: viewer.perspectiveNavigationState.zoomFactor, r: viewer.perspectiveNavigationState}, z => z.value),
+			perspectiveOrientation: rxify(viewer.perspectiveNavigationState.pose.orientation, o => quat.clone(o.orientation)),
 			full: rxify(nav, n => { return {
 				position: vec3.clone(n.position.spatialCoordinates), 
 				orientation: quat.clone(n.pose.orientation.orientation), 
 				zoom: n.zoomFactor.value
 			}}),
 			get all() {
-				return this.full.combineLatest(this.perspectiveZoom, (full, perspectiveZoom) => {return {perspectiveZoom, ...full}}).publishReplay(1).refCount();
+				const perspective = this.perspectiveZoom.combineLatest(this.perspectiveOrientation, (perspectiveZoom, perspectiveOrientation) => {return {perspectiveZoom, perspectiveOrientation}});
+				return this.full.combineLatest(perspective, (full, perspective) => {return {...full, ...perspective}}).publishReplay(1).refCount();
 			}
 		}
 
