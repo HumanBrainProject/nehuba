@@ -12,6 +12,14 @@ export function configureInstance(viewer: Viewer, config: Config) {
 	// !!! Depends on complementary patch in `patches.ts`, so don't rxify it just yet (it's global)
 	if (config.globals && config.globals.useCustomSegmentColors) useNehubaCustomSegmentColors(viewer);
 	// useNehubaIndependentSegmentMeshes(viewer); //Handled in NehubaViewer
+
+	//Remap actions to nehuba
+	if (config.globals && config.globals.useNehubaLayout) {
+		viewer.inputEventBindings.sliceView.set('at:shift+mousedown0', {action: 'nehuba-rotate-via-mouse-drag', stopPropagation: true}) //Actual action listener is registered by NehubaLayout
+		if (config.layout && config.layout.useNehubaPerspective) {
+			viewer.inputEventBindings.perspectiveView.set('at:shift+mousedown0', {action: 'nehuba-translate-via-mouse-drag', stopPropagation: true}) //Actual action listener is registered by NehubaPerspectivePanel
+		}
+	}
 }
 
 export function configureParent(parent: HTMLElement, config: Config) {
@@ -117,12 +125,12 @@ export function forEachSegmentationUserLayerOnce(viewer: Viewer, func: (layer: S
 
 function flipCtrlOfMouseWheelEvent(parent: HTMLElement, config: Config) {
 	const customEvent = Symbol('customEvent');
-	parent.addEventListener('wheel', e => {
+	parent.addEventListener('wheel', e => { //TODO Use `registerEventListener` from 'neuroglancer/util/disposable'
 		if ((<any>e)[customEvent]) return;
 		if (!config.zoomWithoutCtrl) return;
 		e.stopImmediatePropagation();
 		e.stopPropagation();
-		e.preventDefault(); //TODO remove?
+		e.preventDefault();
 		const evt = new Proxy<WheelEvent>(e, {
 			get: function(target: any, p: PropertyKey) {
 				if (p === 'ctrlKey') return !target[p];

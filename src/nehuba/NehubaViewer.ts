@@ -100,6 +100,7 @@ export class NehubaViewer {
 
 	setPosition(newPosition: vec3, realSpace?: boolean) {
 		const {position} = this.ngviewer.navigationState.pose;
+		// TODO add `if (position.valid) {` check ???? (from navigateToOrigin)
 		if (realSpace) { 
 			vec3.copy(position.spatialCoordinates, newPosition);
 			position.markSpatialCoordinatesChanged();
@@ -177,7 +178,7 @@ export class NehubaViewer {
 	}
 
 	relayout() {
-		this.ngviewer.layoutName.changed.dispatch();
+		this.ngviewer.layout.container.component.changed.dispatch();
 	}
 	redraw() {
 		this.ngviewer.display.scheduleRedraw();
@@ -193,7 +194,7 @@ export class NehubaViewer {
 	static create(configuration?: Config/* , container?: HTMLElement */, errorHandler?: (error: Error) => void) { //TODO Accept String id for container and lookup ElementById
 		const config = configuration || {};
 
-		const parent = /* container ||  */document.getElementById('container')!; //TODO id as param ( String|HTMLElement )
+		const parent = /* container ||  */document.getElementById('neuroglancer-container')!; //TODO id as param ( String|HTMLElement )
 		if ((<any>parent)[configSymbol]) {
 			const error = new Error('Viewer is already created in this container: ' + parent);
 			// errorHandler ? errorHandler(error) :  (() => {throw error})();

@@ -16,6 +16,6 @@
   },
   "homepage": "https://github.com/HumanBrainProject/nehuba#readme",
   "dependencies": {
-    "@reactivex/rxjs": "^5.4.3"
+    "@reactivex/rxjs": "5.4.3"
   }
 }

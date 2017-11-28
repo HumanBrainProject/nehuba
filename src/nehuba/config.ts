@@ -24,9 +24,7 @@ export interface Config {
 		hideNullImageValues?: boolean
 
 		/** Install Nehuba layout and remove Neuroglancer layouts. Nehuba layout is configured by 'layout' section of this config. */
-		useNehubaLayout?: boolean | { //TODO Find a way to patch Viewer to use our custom LAYOUTS array so that all the layouts are completely instance configurable 
-			keepDefaultLayouts?: false //Fixed to false, because currently they are broken by our patches, but should be boolean eventually... probably... Or just removed.
-		}
+		useNehubaLayout?: boolean //TODO Find a way to make the layouts instance configurable 
 		/** Patch neuroglancer to use `NehubaSegmentColorHash` which provides the ability to define specific colors for segment id's instead
 		 *  of neuroglancer random choice of colors. By default it should behave exactly like original Neuroglancer if no custom user-provided colors were set through {@link NehubaViewer} API */
 		useCustomSegmentColors?: boolean
@@ -43,11 +41,6 @@ export interface Config {
 		/** Remove top neuroglancer UI. This is quick and dirty solution by monkey-patching neuroglancer viewer, hence global. TODO find more elegant approach
 		 *  This is temporary solution, not very much needed. Will be deprecated and removed. TO BE DEPRECATED */
 		embedded?: boolean
-		/*********************** Deprecated ***********************/
-		//@Deprecated Use instance-specific rightClickWithCtrl instead. This one could be used as a fallback if instance-specific implementation behaves incorrectly
-		rightClickWithCtrlGlobal?: boolean
-		//@Deprecated Use instance-specific zoomWithoutCtrl instead. This one could be used as a fallback if instance-specific implementation behaves incorrectly
-		zoomWithoutCtrlGlobal?: boolean 
 	}
 	/** Intercept mouse wheel events on the parent DOM element of the viewer, flip the ctrl flag and propogate further.
 	 *  Effectively tricking neuroglancer to think that ctrl button is pressed when it is not and vice versa. Togglable. */
@@ -111,7 +104,9 @@ export interface Config {
 		 *  (if 'globals.useNehubaMeshLayer' or 'globals.useNehubaSingleMeshLayer' is on) and other customisations.
 		 *  By default shift-drag is disabled,    that should be changed because the default behavior should be the same as upstream NG //TODO
 		 *  By default restricts user navigation, that should be changed because the default behavior should be the same as upstream NG //TODO 
-		 *  Togglable, but needs relayout to be changed. */
+		 *  Togglable with exception, but needs relayout to be changed. Exception: Currently shift-drag is remapped (to be disabled) if `useNehubaPerspective`
+		 *  is ON when viewer is created. So even though it is togglable, the shift-drag remapping remains, making shift-drag disabled for original
+		 *  PerspectivePanel as well. And vice versa, if `useNehubaPerspective` toggled after the viewer was created, shift-drag is not disabled */ //TODO make dynamic remapping or better yet finally fix shift-drag
 		useNehubaPerspective?: {
 			/** There is something wrong with shift-drag of perspective view if 'centerToOrigin' is true. So it is disabled by default. TODO Reenable and fix.
 			 *  Better leave it off. It is still here for developer use. Will be fixed and removed. */

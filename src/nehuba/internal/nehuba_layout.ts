@@ -3,18 +3,21 @@ import {NavigationState, OrientationState, Pose} from 'neuroglancer/navigation_s
 import {PerspectivePanel} from 'neuroglancer/perspective_view/panel';
 import {SliceView} from 'neuroglancer/sliceview/frontend';
 import {SliceViewPanel} from 'neuroglancer/sliceview/panel';
-import {TrackableBoolean} from 'neuroglancer/trackable_boolean';
+import {TrackableBoolean, ElementVisibilityFromTrackableBoolean} from 'neuroglancer/trackable_boolean';
 import {RefCounted} from 'neuroglancer/util/disposable';
 import {removeChildren} from 'neuroglancer/util/dom';
-import {/* vec3, */ quat} from 'neuroglancer/util/geom';
+import {vec3, quat} from 'neuroglancer/util/geom';
 
-import { SliceViewViewerState, ViewerUIState, getCommonViewerState } from 'neuroglancer/viewer_layouts';
+import { SliceViewViewerState, ViewerUIState, getCommonViewerState, DataPanelLayoutContainer } from 'neuroglancer/data_panel_layout';
 import { Viewer } from 'neuroglancer/viewer';
 // import { startRelativeMouseDrag } from 'neuroglancer/util/mouse_drag';
 
 import { NehubaPerspectivePanel } from "nehuba/internal/nehuba_perspective_panel";
 import { restrictUserNavigation } from "nehuba/internal/hooks";
 import { Config } from "nehuba/config";
+import { ScaleBarWidget } from 'nehuba/internal/rescued/old_scale_bar';
+import {ActionEvent, registerActionListener} from 'neuroglancer/util/event_action_map';
+import { startRelativeMouseDrag } from 'neuroglancer/util/mouse_drag';
 
 //TODO Following 2 functions are copy-pasted from neuroglancer/viewer_layout.ts because they are not exported
 //TODO Submit PR to export them in the follow-up of PR #44
@@ -76,7 +79,7 @@ export const configSymbol = Symbol('config');
  * Any changes in upstream version since then must be manually applied here with care.
  */
 export class NehubaLayout extends RefCounted {
-  constructor(public rootElement: HTMLElement, public viewer: ViewerUIState) {
+  constructor(public container: DataPanelLayoutContainer, public rootElement: HTMLElement, public viewer: ViewerUIState) {
     super();
 
     const config: Config = (viewer.display.container as any)[configSymbol];
@@ -154,7 +157,7 @@ export class NehubaLayout extends RefCounted {
 
     const sliceViewerState = {
       ...getCommonSliceViewerState(viewer),
-      showScaleBar: viewer.showScaleBar,
+      showScaleBar: /* viewer.showScaleBar, */ new TrackableBoolean(false, false), //Fixed to false while using the old scalebar widget
     };
 
     const sliceViewerStateWithoutScaleBar = {
@@ -165,7 +168,7 @@ export class NehubaLayout extends RefCounted {
       L.withFlex(1, L.box('column', [
         L.withFlex(1, L.box('row', [
           L.withFlex(1, element => {
-            this.registerDisposer(configureSliceViewPanel(new SliceViewPanel(display, element, sliceViews[0], sliceViewerState)));
+            this.registerDisposer(configureSliceViewPanel(useOldScaleBar(new SliceViewPanel(display, element, sliceViews[0], sliceViewerState), viewer.showScaleBar)));
           }),
           L.withFlex(1, element => {
             this.registerDisposer(configureSliceViewPanel(new SliceViewPanel(display, element, sliceViews[1], sliceViewerStateWithoutScaleBar)));
@@ -189,45 +192,32 @@ export class NehubaLayout extends RefCounted {
   }
 }
 
-//TODO TODO Broken by NG update, needs to be reimplemented. 
-// approach 1. Remove and replace action listener from SliceView. Might work only in chrome or not at all https://stackoverflow.com/questions/26845535/removeeventlistener-without-knowing-the-function
-// approach 2. Add another action listener like NG and remap input
-
 // ****** !!! Needs attention !!! ******  Even so the change is minimal - the code is forked/copy-pasted from NG and needs to be updated if changed upstream.
-// The startDragViewport function is copied from https://github.com/google/neuroglancer/blob/9c78cd512a722f3fe9ed097155b6f64f48b8d1c9/src/neuroglancer/sliceview/panel.ts
-// Copied on 19.07.2017 (neuroglancer master commit 9c78cd512a722f3fe9ed097155b6f64f48b8d1c9).
-// Latest commit to panel.ts 3d08828cc337dce1e9bba454f0ef00073697b2e0 on Jun 6, 2017 " fix: make SliceViewPanel and PerspectivePanel resize handling more ro…"
+// The registerActionListener block is copied from https://github.com/google/neuroglancer/blob/de7ca35dd4d9fa4e6c3166d636ee430af6da0fa0/src/neuroglancer/sliceview/panel.ts
+// Copied on 27.11.2017 (neuroglancer master commit de7ca35dd4d9fa4e6c3166d636ee430af6da0fa0).
+// Latest commit to panel.ts 1e06a4768702596f366fb605e9e953f9b8e48386 on Nov 7, 2017 "fix(scale_bar): render scale bar using WebGL to avoid flickering"
 // Any changes in upstream version since then must be manually applied here with care.
 function disableFixedPointInRotation(slice: SliceViewPanel, config: Config) {
-	// slice.startDragViewport = function (this: SliceViewPanel, e: MouseEvent) {
-  //   let {mouseState} = this.viewer;
-  //   if (mouseState.updateUnconditionally()) {
-	// 	//⇊⇊⇊ Our change is only here ⇊⇊⇊
-  //     let initialPosition = config.rotateAtViewCentre ? undefined : vec3.clone(mouseState.position);
-	// 	//⇈⇈⇈ Our change is only here ⇈⇈⇈
+  const {element} = slice;
+  registerActionListener(element, 'nehuba-rotate-via-mouse-drag', (e: ActionEvent<MouseEvent>) => {
+    const {viewer, sliceView} = slice; // <-- Added
 
-  //     startRelativeMouseDrag(e, (event, deltaX, deltaY) => {
-  //       let {position} = this.viewer.navigationState;
-  //       if (event.shiftKey) {
-  //         let {viewportAxes} = this.sliceView;
-  //         this.viewer.navigationState.pose.rotateAbsolute(
-  //             viewportAxes[1], deltaX / 4.0 * Math.PI / 180.0, initialPosition);
-  //         this.viewer.navigationState.pose.rotateAbsolute(
-  //             viewportAxes[0], deltaY / 4.0 * Math.PI / 180.0, initialPosition);
-  //       } else {
-  //         let pos = position.spatialCoordinates;
-  //         vec3.set(pos, deltaX, deltaY, 0);
-  //         vec3.transformMat4(pos, pos, this.sliceView.viewportToData);
-  //         position.changed.dispatch();
-  //       }
-  //       // 'restrictUserNavigation' is implemented in hooks.ts
-  //       // But maybe we can stop the mouse from moving beyond the boundaries if we implement it here?
-  //     });
-  //   }
-  // };
-  
-  config;
-
+    const {mouseState} = /* this. */viewer;
+    if (mouseState.updateUnconditionally()) {
+      //⇊⇊⇊ Our change is here ⇊⇊⇊
+      const initialPosition = config.rotateAtViewCentre ? undefined : vec3.clone(mouseState.position);
+      //⇈⇈⇈ Our change is here ⇈⇈⇈
+      startRelativeMouseDrag(e.detail, (_event, deltaX, deltaY) => {
+        let {viewportAxes} = /* this. */sliceView;
+        /* this. */viewer.navigationState.pose.rotateAbsolute(
+            viewportAxes[1], deltaX / 4.0 * Math.PI / 180.0, initialPosition);
+        /* this. */viewer.navigationState.pose.rotateAbsolute(
+            viewportAxes[0], deltaY / 4.0 * Math.PI / 180.0, initialPosition);
+      });
+    }
+  });  
+  // 'restrictUserNavigation' is implemented in hooks.ts
+  // But maybe we can stop the mouse from moving beyond the boundaries if we implement it in custom 'translate-via-mouse-drag'?
   return slice;
 }
 
@@ -249,3 +239,44 @@ function patchSliceView(slice: SliceViewPanel) {
   return slice;
 }
 */
+
+/** https://github.com/google/neuroglancer/commit/1e06a4768702596f366fb605e9e953f9b8e48386 
+ *  changed the scalebar rendering to be done with WebGL instead of separate HTML element to avoid
+ *  some kind of flickering. 
+ * 
+ *  I don't know which flickering are they talking about.
+ * 
+ *  THE PROBLEM: Clear and very disturbing regression of visual experience on highdpi screens.
+ *  Since neuroglancer is not highdpi-aware, new scalebar is rendered in low dpi and because it contains text,
+ *  this mismatch of dpi is clearly visible.
+ * 
+ *  THE SOLUTION: Take an opportunity to make the whole neuroglancer render in highdpi. TODO submmit upstream.
+ * 
+ *  Until then we use the old scalebar widget
+ */
+function useOldScaleBar(slice: SliceViewPanel, showScaleBar: TrackableBoolean) {
+  const scaleBarWidget = slice.registerDisposer(new ScaleBarWidget());
+
+  let scaleBar = scaleBarWidget.element;
+  slice.registerDisposer(
+      new ElementVisibilityFromTrackableBoolean(/* viewer. */showScaleBar, scaleBar));
+  slice.element.appendChild(scaleBar);
+
+  const originalDraw = slice.draw;
+  slice.draw = function (this: SliceViewPanel) {
+    originalDraw.call(this);
+
+    // Update the scale bar if needed.
+    {
+      let {sliceView} = this;
+      let {width/* , height, dataToDevice */} = sliceView;
+      // let {scaleBarWidget} = this;
+      let {dimensions} = scaleBarWidget;
+      dimensions.targetLengthInPixels = Math.min(width / 4, 100);
+      dimensions.nanometersPerPixel = sliceView.pixelSize;
+      scaleBarWidget.update();
+    }    
+  }
+
+  return slice;
+}

@@ -3,6 +3,7 @@ import {PerspectiveViewRenderContext} from 'neuroglancer/perspective_view/render
 import {SliceView} from 'neuroglancer/sliceview/frontend';
 import {kAxes, mat4, transformVectorByMat4, vec3, vec4} from 'neuroglancer/util/geom';
 import {startRelativeMouseDrag} from 'neuroglancer/util/mouse_drag';
+import {ActionEvent, registerActionListener} from 'neuroglancer/util/event_action_map';
 
 import { PerspectivePanel, PerspectiveViewerState, perspectivePanelEmit, OffscreenTextures, perspectivePanelEmitOIT } from "neuroglancer/perspective_view/panel";
 import { quat } from 'neuroglancer/util/geom';
@@ -34,6 +35,23 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
 	constructor(context: DisplayContext, element: HTMLElement, viewer: PerspectiveViewerState, private config: Config) {
 		super(context, element, viewer);
 
+    registerActionListener(element, 'nehuba-translate-via-mouse-drag', (e: ActionEvent<MouseEvent>) => {
+      startRelativeMouseDrag(e.detail, (_event, deltaX, deltaY) => {
+        if (this.config.layout!.useNehubaPerspective!.enableShiftDrag) { // <-- Added
+          const temp = tempVec3;
+          const {projectionMat} = this;
+          const {width, height} = this;
+          const {position} = this.viewer.navigationState;
+          const pos = position.spatialCoordinates;
+          vec3.transformMat4(temp, pos, projectionMat);
+          temp[0] = 2 * deltaX / width;
+          temp[1] = -2 * deltaY / height;
+          vec3.transformMat4(pos, temp, this.inverseProjectionMat);
+          position.changed.dispatch();
+        }
+      });
+    });
+
 		const removeBgConfig = config.layout!.useNehubaPerspective!.removePerspectiveSlicesBackground;
 		const mode = (removeBgConfig && removeBgConfig.mode) || 'none';
 		this.nehubaSliceViewRenderHelper = this.registerDisposer(NehubaSliceViewRenderHelper.get(this.gl, perspectivePanelEmit/*sliceViewPanelEmitColor*/, mode));
@@ -56,34 +74,15 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
 		super.disposed();
 	}
 
-	startDragViewport(e: MouseEvent) {
-		const enableShiftDrag = this.config.layout!.useNehubaPerspective!.enableShiftDrag;
-		startRelativeMouseDrag(e, (event, deltaX, deltaY) => {
-			if (event.shiftKey && enableShiftDrag) { //event.shiftKey
-				const temp = tempVec3;
-				const {projectionMat} = this;
-				const {width, height} = this;
-				const {position} = this.viewer.navigationState;
-				const pos = position.spatialCoordinates;
-				vec3.transformMat4(temp, pos, projectionMat);
-				temp[0] = 2 * deltaX / width;
-				temp[1] = -2 * deltaY / height;
-				vec3.transformMat4(pos, temp, this.inverseProjectionMat);
-				position.changed.dispatch();
-			} else {
-				this.navigationState.pose.rotateRelative(kAxes[1], -deltaX / 4.0 * Math.PI / 180.0);
-				this.navigationState.pose.rotateRelative(kAxes[0], deltaY / 4.0 * Math.PI / 180.0);
-				this.viewer.navigationState.changed.dispatch();
-			}
-		});
-	}
-
   draw() {
-    let {width, height} = this;
-    if (!this.navigationState.valid || width === 0 || height === 0) {
+    if (!this.navigationState.valid) {
       return;
     }
     this.onResize();
+    let {width, height} = this;
+    if (width === 0 || height === 0) {
+      return;
+    }
 
     if (this.viewer.showSliceViews.value) {
       for (let sliceView of this.sliceViews) {
@@ -233,6 +232,9 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
       const removeBgConfig = conf.removePerspectiveSlicesBackground;
       const render = removeBgConfig ? nehubaSliceViewRenderHelper : sliceViewRenderHelper;
       for (let sliceView of this.sliceViews) {
+        if (sliceView.width === 0 || sliceView.height === 0) {
+          continue;
+        }
         let scalar = Math.abs(vec3.dot(lightDirection, sliceView.viewportAxes[2]));
         let factor = ambientLighting + scalar * directionalLighting;
         let mat = tempMat4;

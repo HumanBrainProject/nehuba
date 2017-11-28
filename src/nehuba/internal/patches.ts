@@ -1,5 +1,4 @@
-import { LAYOUTS } from 'neuroglancer/viewer_layouts';
-import { RenderedDataPanel } from "neuroglancer/rendered_data_panel";
+import { LAYOUTS } from 'neuroglancer/data_panel_layout';
 import { ImageUserLayer } from "neuroglancer/image_user_layer";
 import { SegmentationUserLayer } from "neuroglancer/segmentation_user_layer";
 import { MeshSource } from 'neuroglancer/mesh/frontend';
@@ -22,24 +21,17 @@ export function patchNeuroglancer(config: Config) {
 	//TODO allow patching multiple times with the same config
 	//TODO check for config values in patches. Allows runtime toggling. But only if was on here... Or should we patch all then anyway? Not good for debug/tracing problems
 	if (patched) return; //throw new Error('Monkey patches are already applied to Neuroglancer. Should call patchNeuroglancer(config) only once');
-	/** Install JulichLayout as the only layout used by neuroglancer */
+	/** Install NehubaLayout as the only layout used by neuroglancer */
 	if (conf.useNehubaLayout) {
-		if (typeof conf.useNehubaLayout === 'object') {
-			if (conf.useNehubaLayout.keepDefaultLayouts) LAYOUTS.push(LAYOUTS[0]); //Re-add original 4panel layout to the end
-			else LAYOUTS.length = 0; //Disables other layouts until further notice. (They need to be updated too.)
-		} else if (typeof conf.useNehubaLayout === 'boolean') LAYOUTS.length = 0; //Disables other layouts until further notice. (They need to be updated too.)
-		LAYOUTS[0] = ['Nehuba', (element, viewer) => new NehubaLayout(element, viewer)];
+		LAYOUTS.clear();
+		LAYOUTS.set('4panel', {factory: (container, element, viewer) => new NehubaLayout(container, element, viewer)});
+		LAYOUTS.set('xy', {factory: (container, element, viewer) => new NehubaLayout(container, element, viewer)}); // Needed only for split views to work. 'xy' is default layout when splitting the view //TODO Actually implement other NG layouts
 	}
 	if (conf.hideNullImageValues) fix_HideNullImageValues();
 	if (conf.useCustomSegmentColors) useNehubaColorsInSegmentationRenderLayer(); // !!! Depends on complementary hook in `hooks.ts`
 	if (conf.useNehubaMeshLayer) useNehubaMeshInSegmentationLayer();
 	if (conf.useNehubaSingleMeshLayer) useNehubaSingleMesh();
 	if (conf.embedded) hideNeuroglancerUI();
-	
-	// ***************** Deprecated *****************
-	if (conf.zoomWithoutCtrlGlobal) flipMouseWheelCtrl();
-	//Custom action on right click is implemented in useCtrlForNgRightClick too, but not exposed yet via config. Rename useCtrlForNgRightClick once it is
-	if (conf.rightClickWithCtrlGlobal) useCtrlForNgRightClick();
 
 	patched = true;
 }
@@ -111,63 +103,4 @@ function hideNeuroglancerUI() {
 		opts.showLocation = false;
 		originalMakeUI.call(this);
 	}
-}
-
-// ***************** Deprecated *****************
-
-//@Deprecated. There is instance-specific implementation which captures wheel event on the top viewer element and re-dispatch the proxied one
-// This code left just for the reference and as a fallback if new instance implementation disbehaves 
-//@ZeroMaintenance. Wraps original NG function, so no care needed when updating NG.
-function flipMouseWheelCtrl() {
-	//TODO Capture mouse wheel event on the top viewer element and re-dispatch the proxied one
-	//This way we avoid monkey patching AND avoid it to be global config option
-	const ngOnMouseWheel = RenderedDataPanel.prototype.onMousewheel;
-	RenderedDataPanel.prototype.onMousewheel = function(this: RenderedDataPanel, e: WheelEvent) {
-		const evt = new Proxy<WheelEvent>(e, {
-			get: function(target: any, p: PropertyKey) {
-				if (p === 'ctrlKey') return !target[p];
-				const res = target[p];
-				if (typeof res === 'function') return res.bind(target);
-				else return res;
-			}
-		});
-		evt.stopImmediatePropagation();
-		evt.stopPropagation();
-		const evt2 = new WheelEvent(e.type, evt);
-		ngOnMouseWheel.call(this, evt2);
-	}
-}
-
-//@Deprecated. There is instance-specific implementation which stops right button click propogation on the top viewer element if ctrl is not pressed
-// Here is an example of how to handle right click better
-// This code left just for the reference and as a fallback if new instance-specific implementation behaves incorrectly
-//@MinimalMaintenance. Wraps original NG function, so no care needed when updating NG, unless user controls logic changes significantly upstream
-function useCtrlForNgRightClick() {
-	//TODO May be capture event on the top viewer element similar to flipMouseWheelCtrl? To make it not global and avoid monkey patching?
-	//TODO Should be anyway somehow configurable along with all the other mouse/keyboard controls on the higher level
-
-	//Copied and modified from atlas_viewer_setup
-	//Patching RenderedDataPanel affects both SliceViewPanel and PerspectivePanel. TODO May be patch only slice view, or both with different actions...
-	const ngOnMouseDown = RenderedDataPanel.prototype.onMousedown;
-	RenderedDataPanel.prototype.onMousedown = function (this: RenderedDataPanel, e: MouseEvent) {
-		if (e.button === 2) {
-			//TODO Distinguish click from drag?
-			//TODO Distinguish clicks in the image from click on panel background outside of image...?
-			//TODO e.preventDefault()?
-			if (e.ctrlKey) {
-				e.view.addEventListener('mouseup', (e) => {
-					if (e.target === this.element && e.button === 2 && e.ctrlKey/*? do we really need ctrl to be pressed on mouseup?*/) { //check for right button? On my mouse I can not press left and right at the same time, but somebody might produce such a combo (right down -> left down -> left up), right?
-						ngOnMouseDown.call(this, e);
-					}
-				}, { once: true } as any); // TODO 'once' is new (hance "as any", no typings yet), Firefox 50+, Chrome 55+, Safari ?. TODO Reimplement with once function like here https://hastebin.com/ikixonajuk.coffee for compatibility
-			} else {
-				e.view.addEventListener('mouseup', (e) => {
-					if (e.target === this.element && e.button === 2) { //check for right button? On my mouse I can not press left and right at the same time, but somebody might produce such a combo (right down -> left down -> left up), right?
-						// this.viewer.layerManager.invokeAction('custom');
-						//TODO ___________ Context menu ____________ Here or in customActionHandler?
-					}
-				}, {once: true} as any); // TODO 'once' is new (hance as any, no typings yet), Firefox 50+, Chrome 55+, Safari ?. TODO Reimplement with once function like here https://hastebin.com/ikixonajuk.coffee for compatibility
-			}
-		} else ngOnMouseDown.call(this, e);
-	};	
 }
