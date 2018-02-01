@@ -114,7 +114,9 @@ export class NehubaMeshLayer extends MeshLayer {
 			}
 		});		
 
+		let loadedFragments = 0; //Array.from(objectChunks.values()).reduce((acc, current) => acc + current.size, 0);
 		forEachSegmentToDraw(displayStateProxy, objectChunks, (rootObjectId, objectId, fragments) => {
+			// loadedFragments += fragments.size; //Currently the same (all fragments have ChunkState.GPU_MEMORY)
 			if (renderContext.emitColor) {
 				meshShaderManager.setColor(gl, shader, getObjectColor(displayState, rootObjectId, alpha));
 			}
@@ -129,12 +131,19 @@ export class NehubaMeshLayer extends MeshLayer {
 			for (let fragment of fragments) {
 				if (fragment.state === ChunkState.GPU_MEMORY) {
 					meshShaderManager.drawFragment(gl, shader, fragment);
+					loadedFragments++;
 				}
 			}
 		});
 
 		meshShaderManager.endLayer(gl, shader);
 		renderContext.extra.meshRendered = objectChunks.size > 0;
+		if (renderContext.extra.meshesLoaded === -1) renderContext.extra.meshesLoaded = 0;
+		renderContext.extra.meshesLoaded += objectChunks.size;
+		if (renderContext.extra.meshFragmentsLoaded === -1) renderContext.extra.meshFragmentsLoaded = 0;
+		renderContext.extra.meshFragmentsLoaded += loadedFragments;
+		const objectKeys = Array.from(objectChunks.keys())
+		renderContext.extra.lastMeshId = objectKeys[objectKeys.length - 1];
 	}
 }
 

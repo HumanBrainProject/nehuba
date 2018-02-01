@@ -18,7 +18,7 @@ export function rxify<R, T extends {changed: NullarySignal}>(sig: (T & RefCounte
 		return () => {rm(); d.unregisterDisposer(disp)};
 	});
 	if (opts.share) {
-		if (opts.prefire) return rx.publishReplay(1).refCount();
+		if (opts.prefire) return rx.publishReplay(1).refCount(); //refCount does not call connect, only on 1st subscription
 		else return rx.share();
 	} else return rx;
 }

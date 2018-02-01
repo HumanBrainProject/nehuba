@@ -18,6 +18,10 @@ import { Config } from "nehuba/config";
 import { ScaleBarWidget } from 'nehuba/internal/rescued/old_scale_bar';
 import {ActionEvent, registerActionListener} from 'neuroglancer/util/event_action_map';
 import { startRelativeMouseDrag } from 'neuroglancer/util/mouse_drag';
+import { ImageRenderLayer } from 'neuroglancer/sliceview/volume/image_renderlayer';
+import { VolumeChunkSource } from 'neuroglancer/sliceview/volume/frontend';
+import { ChunkState } from 'neuroglancer/chunk_manager/base';
+import { RenderLayer } from 'neuroglancer/sliceview/renderlayer';
 
 //TODO Following 2 functions are copy-pasted from neuroglancer/viewer_layout.ts because they are not exported
 //TODO Submit PR to export them in the follow-up of PR #44
@@ -68,7 +72,11 @@ function makeFixedZoomSlicesFromSlices(sliceViews: SliceView[], viewerState: Sli
 }
 
 export const configSymbol = Symbol('config');
-
+export const layoutEventType = 'layoutEvent';
+export interface LayoutEventDetail {
+  // perspectivePanel: PerspectivePanel
+  perspective?: HTMLElement
+}
 /**
  * In neuroglancer's FourPanelLayout all the work is done in constructor. So it is not feasible to extend or monkey-patch it. 
  * Therefore the fork of the whole FourPanelLayout class is needed to change it.
@@ -94,7 +102,8 @@ export class NehubaLayout extends RefCounted {
       return slice;
     }
     const configureSliceViewPanel = (slice: SliceViewPanel) => {
-      disableFixedPointInZoom(disableFixedPointInRotation(changeBackground(slice), config), config);
+      //TODO Perchaps it is time for NehubaSliceViewPanel
+      dispatchRenderEvents(disableFixedPointInZoom(disableFixedPointInRotation(changeBackground(slice), config), config));
       return slice;
     }
 
@@ -115,22 +124,23 @@ export class NehubaLayout extends RefCounted {
     }
     const views = layoutConfig.views;
     const quats = [views.slice1, views.slice2, views.slice3];
-	 let sliceViews = quats.map(q => { return makeSliceViewNhb(viewer, q); });
+    let sliceViews = quats.map(q => { return makeSliceViewNhb(viewer, q); });
 
+    let perspectivePanel: PerspectivePanel|undefined;
     const makePerspective: L.Handler = element => {
 
       if (layoutConfig.useNehubaPerspective) {
         const conf = layoutConfig.useNehubaPerspective;
-        let perspectivePanel = this.registerDisposer(
+        perspectivePanel = this.registerDisposer(
             new NehubaPerspectivePanel(display, element, perspectiveViewerState, config));
         
-        sliceViews.forEach(slice => { perspectivePanel.planarSlices.add(slice.addRef()); })
+        sliceViews.forEach(slice => { (perspectivePanel as NehubaPerspectivePanel).planarSlices.add(slice.addRef()); })
         if (conf.fixedZoomPerspectiveSlices) {
           const cnfg = conf.fixedZoomPerspectiveSlices;
           makeFixedZoomSlicesFromSlices(sliceViews, viewer, cnfg.sliceZoom).forEach(slice => {
             const m = cnfg.sliceViewportSizeMultiplier;
             slice.setViewportSize(cnfg.sliceViewportWidth * m, cnfg.sliceViewportHeight * m);
-            perspectivePanel.sliceViews.add(slice);
+            perspectivePanel!.sliceViews.add(slice);
           })
         } else {
           for (let sliceView of sliceViews) {
@@ -138,7 +148,7 @@ export class NehubaLayout extends RefCounted {
           }
         }
       } else {
-        let perspectivePanel = this.registerDisposer(
+        perspectivePanel = this.registerDisposer(
             new PerspectivePanel(display, element, perspectiveViewerState));
         for (let sliceView of sliceViews) {
           perspectivePanel.sliceViews.add(sliceView.addRef());
@@ -184,6 +194,10 @@ export class NehubaLayout extends RefCounted {
     ];
     L.box('row', mainDisplayContents)(rootElement);
     display.onResize();
+
+    const detail: LayoutEventDetail = { perspective: perspectivePanel && perspectivePanel.element}
+    const event = new CustomEvent(layoutEventType, {detail});
+    viewer.display.container.dispatchEvent(event);
   }
 
   disposed() {
@@ -279,4 +293,68 @@ function useOldScaleBar(slice: SliceViewPanel, showScaleBar: TrackableBoolean) {
   }
 
   return slice;
+}
+
+export const sliceRenderEventType = 'sliceRenderEvent';
+/** Contains a reference to corresponding slice view. Don't store, allow gc */
+export interface SliceRenderEventDetail {
+  /** Missing chunks from layers of 'image' type.
+   *  Value of -1 indicates that there are no layers yet */
+  missingImageChunks: number,
+  /** Missing chunks from all layers.
+   *  Value of -1 indicates that there are no layers yet */
+  missingChunks: number,
+  nanometersToOffsetPixels: (point: vec3) => vec3
+}
+
+function dispatchRenderEvents(slice: SliceViewPanel) {
+  const originalDraw = slice.draw;
+  slice.draw = function (this: SliceViewPanel) {
+    originalDraw.call(this);
+    const coordsConv = (point: vec3) => dataToOffsetPixels(slice, point);
+    const detail: SliceRenderEventDetail = {
+      missingImageChunks: getNumberOfMissingChunks(this.sliceView, it => it instanceof ImageRenderLayer),
+      missingChunks: getNumberOfMissingChunks(this.sliceView),
+      nanometersToOffsetPixels: coordsConv
+    };
+    const event = new CustomEvent(sliceRenderEventType, {bubbles: true, detail});
+    this.element.dispatchEvent(event);  
+  }  
+}
+
+//TODO Should be a method of {Nehuba}SliceViewPanel
+function dataToOffsetPixels(slice: SliceViewPanel, point: vec3) {
+  const vec = vec3.transformMat4(vec3.create(), point, slice.sliceView.dataToViewport);
+  vec[0] = (vec[0] + slice.sliceView.width / 2) + slice.element.clientLeft;
+  vec[1] = (vec[1] + slice.sliceView.height / 2) + slice.element.clientTop;
+  return vec;
+}
+
+//TODO Find a way to count failed chunks
+/** Adapted from RenderLayer.draw() from neuroglancer/sliceview/volume/renderlayer.ts 
+*  Latest commit to renderlayer.ts 121102a4d57ab0307a9f97ef81dd8087dc7dad89 on Sep 29, 2017 " fix(sliceview): mitigate floating-point accuracy issue with vChunkPosition" */
+function getNumberOfMissingChunks(sliceView: SliceView, layerSelector?: (layer: RenderLayer) => boolean) {
+  const layers = sliceView.visibleLayerList
+    .filter(it => layerSelector ? layerSelector(it) : true);
+  if (layers.length === 0) return -1;
+  return layers
+    .map(layer => sliceView.visibleLayers.get(layer)!)
+    .reduce((a, b) => a.concat(b), [])
+    .filter(it => it instanceof VolumeChunkSource) //Suppress errors just in case
+    .map(it => it as VolumeChunkSource)
+    .map(source => {
+      const chunkLayout = source.spec.chunkLayout;
+      const chunks = source.chunks;
+      const visibleChunks = sliceView.visibleChunks.get(chunkLayout);
+      if (visibleChunks) {
+        return visibleChunks
+          .map(key => chunks.get(key))
+          .filter(chunk => !(chunk && chunk.state === ChunkState.GPU_MEMORY)) // TODO Looks like failed chunks are undefined here instead of ChunkState.FAILED, did not observe any state other then GPU_MEMORY. TODO fix and submit upstream proper chunk state reporting
+          .length;
+      } else {
+        console.log('visibleChunks are not defined'); //seems to be always defined
+        return 0;
+      }
+    })
+    .reduce((accumulator, currentValue) => accumulator + currentValue, 0);
 }

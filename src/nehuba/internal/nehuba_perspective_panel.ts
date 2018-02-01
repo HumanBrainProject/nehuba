@@ -15,6 +15,15 @@ import { Config } from "nehuba/config";
 const tempVec3 = vec3.create();
 const tempMat4 = mat4.create();
 
+export const perspectiveRenderEventType = 'perpspectiveRenderEvent';
+export interface PerspectiveRenderEventDetail {
+  /** Value of -1 indicates that there are no visible segmentation layers */
+  meshesLoaded: number,
+  /** Value of -1 indicates that there are no visible segmentation layers */
+  meshFragmentsLoaded: number,
+  lastLoadedMeshId?: string
+}
+
 export interface ExtraRenderContext {
   config: Config
   showSliceViewsCheckboxValue: boolean
@@ -22,6 +31,11 @@ export interface ExtraRenderContext {
   perspectiveNavigationState: NavigationState
   /** To be set by our custom renderLayers to indicate that mesh has been rendered. So it is a return value from draw method to avoid changing draw method signature */
   meshRendered?: boolean
+  /** Value of -1 indicates that there are no visible segmentation layers */
+  meshesLoaded: number
+  /** Value of -1 indicates that there are no visible segmentation layers */
+  meshFragmentsLoaded: number
+  lastMeshId?: string
 }
 
 export class NehubaPerspectivePanel extends PerspectivePanel {
@@ -139,6 +153,8 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
         slicesPose: (<any>this.viewer).slicesNavigationState.pose as Pose,
         perspectiveNavigationState: this.viewer.navigationState,
         // meshRendered: false
+        meshesLoaded: -1,
+        meshFragmentsLoaded: -1
       }
     };
 
@@ -220,6 +236,14 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     this.setGLViewport();
     this.offscreenCopyHelper.draw(
         this.offscreenFramebuffer.colorBuffers[OffscreenTextures.COLOR].texture);
+
+    const detail: PerspectiveRenderEventDetail = { 
+      meshesLoaded: renderContext.extra.meshesLoaded,
+      meshFragmentsLoaded: renderContext.extra.meshFragmentsLoaded,
+      lastLoadedMeshId: renderContext.extra.lastMeshId
+    }
+    const event = new CustomEvent(perspectiveRenderEventType, {bubbles: true, detail});
+    this.element.dispatchEvent(event);
   }
 
   protected drawSliceViews(renderContext: PerspectiveViewRenderContext) {
