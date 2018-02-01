@@ -77,8 +77,8 @@ There is no standalone documentation at the moment, but we are trying to documen
 
 In action
 ---------
-Here are some of the more or less up-to-date development previews of atlases for [Human Brain Project](https://www.humanbrainproject.eu) made using this project:
-1. BigBrain [http://bigbrain.bitballoon.com](http://bigbrain.bitballoon.com)
-2. JuBrain [http://jubrain.bitballoon.com](http://jubrain.bitballoon.com)
-3. Waxholm [http://waxholm.bitballoon.com](http://waxholm.bitballoon.com)
-4. AMBA [http://amba.bitballoon.com](http://amba.bitballoon.com)
+Here are some dedicated atlas viewers for [Human Brain Project](https://www.humanbrainproject.eu) made using this project:
+1. BigBrain [https://bigbrain.humanbrainproject.org](https://bigbrain.humanbrainproject.org)
+2. JuBrain [https://jubrain.humanbrainproject.org](https://jubrain.humanbrainproject.org)
+3. Waxholm [https://waxholm.humanbrainproject.org](https://waxholm.humanbrainproject.org)
+4. AMBA [https://amba.humanbrainproject.org](https://amba.humanbrainproject.org)
