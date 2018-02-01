@@ -156,26 +156,20 @@ export class NehubaViewer {
 		this.getSingleSegmentationColors(layer).batchUpdate(colorMap);
 	}
 
-	// private meshesToLoadSubscription?: Subscription;
-	/** Takes over control over segment meshes loaded by background thread. All (and only) of the meshes from provided array are 
-	 *  loaded by the backgroung thread. This set of meshes will be used by {NehubaMeshLayer} as "All meshes", e.g. displayed in 3d view
-	 *  when front octant is removed or when "Slices" checkbox is unchecked and no segment is selected. In the former case {NehubaMeshLayer} will
+	/** Provides a list of segment meshes to be loaded by background thread if {config.enableMeshLoadingControl} is set to true. 
+	 *  All (and only) of the meshes from provided array are loaded by the backgroung thread. This set of meshes will be used by {NehubaMeshLayer} as "All meshes", 
+	 *  e.g. displayed in 3d view when front octant is removed or when "Slices" checkbox is unchecked and no segment is selected. In the former case {NehubaMeshLayer} will
 	 *  also start to display full meshes (without clipping in the front octant) for selected segments. 
 	 *  (Exceptions is when {config.layout.useNehubaPerspective.mesh.surfaceParcellation} is true, then all meshes are displayed and clipped 
 	 *  in the front octant at all times regardless of selected segments and "Slices" checkbox)
 	 *  If particular mesh is not present in the provided array, it will not be loaded and displayed even if corresponding segment is selected.
 	 *  Applied to currently loaded segmentation layer. Needs to be called again when layers are re-added, for example if "Reset" button is pressed, 
 	 *  new URL copy-pasted by the user or `restoreState` is called on ngviewer programmatically)
-	 *  @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria */
+	 *  @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria
+	 *  @throws Will throw an error if mesh loading control is not enabled ({config.enableMeshLoadingControl}) */
 	setMeshesToLoad(meshes: number[], layer?: {name?: string, url?:string}) {
-		// if (this.meshesToLoadSubscription) this.meshesToLoadSubscription.unsubscribe();
-		// const s = this.createdSegmentationUserLayers.subscribe(l => {
-			const { displayState } = this.getSingleSegmentation(layer); // l;
-			if (!(displayState.visibleSegments instanceof VisibleSegmentsWrapper)) displayState.visibleSegments = new VisibleSegmentsWrapper(displayState.visibleSegments);
-			(displayState.visibleSegments as VisibleSegmentsWrapper).setMeshesToLoad(meshes);
-		// });
-		// this.meshesToLoadSubscription = s;
-		// return () => s.unsubscribe(); //return subscription?
+		const { visibleSegments } = this.getSingleSegmentation(layer).displayState;
+		visibleSegments instanceof VisibleSegmentsWrapper ? visibleSegments.setMeshesToLoad(meshes) : this.throwError('visibleSegments property is not wrapped by nehuba. Maybe mesh loading control is not enabled in config (enableMeshLoadingControl?: boolean) ');
 	}
 
 	relayout() {
@@ -284,6 +278,12 @@ export class NehubaViewer {
 		
 		this.createdSegmentationUserLayers.subscribe(l => {if (this.config.disableSegmentSelection) disableSegmentSelectionForLayer(l)});
 		this.createdSegmentationUserLayers.subscribe(l => {if (this.config.disableSegmentHighlighting) disableSegmentHighlightingForLayer(l)});
+		this.createdSegmentationUserLayers.subscribe(layer => {
+			if (this.config.enableMeshLoadingControl) {
+				const { displayState } = layer;
+				if (!(displayState.visibleSegments instanceof VisibleSegmentsWrapper)) displayState.visibleSegments = new VisibleSegmentsWrapper(displayState.visibleSegments);
+			}
+		});
 
 		const userLayersWithNames = managedLayers.let(toUserLayersWithNames);
 		

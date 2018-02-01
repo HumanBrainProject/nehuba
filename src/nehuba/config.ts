@@ -68,6 +68,17 @@ export interface Config {
 	/** Disables 'Highlighting' when mouse hovers over a segment. Currently is only used by BigBrain preview, because with 2 large segments this highlighting 
 	 *  is just annoying flickering.	Semi-togglable, meaning that toggling will affect only freshly added layers, but not the ones already present. */
 	disableSegmentHighlighting?: boolean
+	/** By default neuroglancer only loads (if present) corresponding meshed for selected segments.
+	 *  This option takes control of meshes loaded by background thread and enables the use of `setMeshesToLoad` method of `NehubaViewer` to specify the exact list
+	 *  of meshes to be loaded. All (and only) of the meshes from provided list are then loaded by the backgroung thread. This set of meshes will be used by {NehubaMeshLayer} 
+	 *  as "All meshes", e.g. displayed in 3d view when front octant is removed or when "Slices" checkbox is unchecked and no segment is selected. In the former case 
+	 *  {NehubaMeshLayer} will also start to display full meshes (without clipping in the front octant) for selected segments. 
+	 *  (Exceptions is when {config.layout.useNehubaPerspective.mesh.surfaceParcellation} is true, then all meshes are displayed and clipped 
+	 *  in the front octant at all times regardless of selected segments and "Slices" checkbox)
+	 *  If particular mesh is not specified by `setMeshesToLoad`, it will not be loaded and displayed even if corresponding segment is selected. 
+	 *  Therefore enabling this option assumes that `setMeshesToLoad` will be called as well, otherwise threre will be no meshes at all.
+	 *  Semi-togglable, meaning that toggling will affect only freshly added layers, but not the ones already present. */
+	enableMeshLoadingControl?: boolean
 
 	/** Neuroglancer state plus additional metadata neseccary to properly display the dataset. 
 	 *  Eventually might be stored in Knowledge Graph next to the actual data.	*/

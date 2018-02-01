@@ -206,7 +206,14 @@ export class VisibleSegmentsWrapper extends SharedObject implements Uint64Set {
 	
 	setMeshesToLoad(meshes: number[]) {
 		this.wrapped.clear();
-		meshes.forEach(n => this.wrapped.add(new Uint64(n)));		
+		//TODO Find a way to batch set all at once without triggering (twice!) changed.dispatch
+		meshes.forEach(n => {
+			const value = new Uint64(n);
+			this.wrapped.add(value);
+			// Bad workaround needed to trick new SegmentSetWidget, which uses dispatched value to update itself
+			// TODO Remove when nehuba own widgets are available
+			this.wrapped.changed.dispatch(value, false);
+		});
 	}
 
 	getLoadedMeshes() {
