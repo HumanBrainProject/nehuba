@@ -11,6 +11,7 @@ import { NavigationState, Pose } from 'neuroglancer/navigation_state';
 
 import { NehubaSliceViewRenderHelper, TransparentPlaneRenderHelper } from "nehuba/internal/nehuba_renderers";
 import { Config } from "nehuba/config";
+import { WatchableVisibilityPriority } from 'neuroglancer/visibility_priority/frontend';
 
 const tempVec3 = vec3.create();
 const tempMat4 = mat4.create();
@@ -68,7 +69,9 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
 
 		const removeBgConfig = config.layout!.useNehubaPerspective!.removePerspectiveSlicesBackground;
 		const mode = (removeBgConfig && removeBgConfig.mode) || 'none';
-		this.nehubaSliceViewRenderHelper = this.registerDisposer(NehubaSliceViewRenderHelper.get(this.gl, perspectivePanelEmit/*sliceViewPanelEmitColor*/, mode));
+    this.nehubaSliceViewRenderHelper = this.registerDisposer(NehubaSliceViewRenderHelper.get(this.gl, perspectivePanelEmit/*sliceViewPanelEmitColor*/, mode));
+    
+    this.registerDisposer(this.visibility.changed.add(() => this.sliceViews.forEach(slice => slice.visibility.value = this.visibility.value)));
 	}	
 
 	updateProjectionMatrix() {
@@ -89,6 +92,11 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
 	}
 
   draw() {
+    for (let sliceView of this.sliceViews) {
+      if (this.config.layout!.useNehubaPerspective!.disablePerspectiveSlicesPreloading) {
+        sliceView.visibility.value = (this.viewer.showSliceViews.value && this.visibility.visible) ? WatchableVisibilityPriority.VISIBLE : WatchableVisibilityPriority.IGNORED;
+      } else sliceView.visibility.value = this.visibility.value;
+    }
     if (!this.navigationState.valid) {
       return;
     }

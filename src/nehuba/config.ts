@@ -219,6 +219,10 @@ export interface Config {
 				minZoom?: number
 				maxZoom?: number
 			}
+			/** If `Slices` checkbox is unchecked, set `visibility` of perspective slices to `IGNORED`. This way slices will not request their chunks, which is handy for ilastik use-case.
+			 *  Not disabled by default because it does deteriorate user experience slightly in other cases.
+			 *  Will be deprecated when ilastik does not need it. */
+			disablePerspectiveSlicesPreloading?: boolean //TODO Deprecate
 		}
 	}
 }

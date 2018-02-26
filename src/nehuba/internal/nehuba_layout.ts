@@ -140,6 +140,9 @@ export class NehubaLayout extends RefCounted {
           makeFixedZoomSlicesFromSlices(sliceViews, viewer, cnfg.sliceZoom).forEach(slice => {
             const m = cnfg.sliceViewportSizeMultiplier;
             slice.setViewportSize(cnfg.sliceViewportWidth * m, cnfg.sliceViewportHeight * m);
+            // The correct way to fix #1 would be:
+            //    perspectivePanel!.registerDisposer(slice.visibility.add(perspectivePanel!.visibility));
+            // here. But to support ilastik use-case it is done in NehubaPerspectivePanel.draw(), so that slices don't request their chunks when "Slices" checkbox is unchecked
             perspectivePanel!.sliceViews.add(slice);
           })
         } else {
