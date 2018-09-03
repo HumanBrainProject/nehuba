@@ -1,7 +1,7 @@
 import * as L from 'neuroglancer/layout';
 import {NavigationState, OrientationState, Pose} from 'neuroglancer/navigation_state';
 import {PerspectivePanel} from 'neuroglancer/perspective_view/panel';
-import {SliceView} from 'neuroglancer/sliceview/frontend';
+import {SliceView, SliceViewChunkSource} from 'neuroglancer/sliceview/frontend';
 import {SliceViewPanel} from 'neuroglancer/sliceview/panel';
 import {TrackableBoolean, ElementVisibilityFromTrackableBoolean} from 'neuroglancer/trackable_boolean';
 import {RefCounted} from 'neuroglancer/util/disposable';
@@ -22,6 +22,7 @@ import { ImageRenderLayer } from 'neuroglancer/sliceview/volume/image_renderlaye
 import { VolumeChunkSource } from 'neuroglancer/sliceview/volume/frontend';
 import { ChunkState } from 'neuroglancer/chunk_manager/base';
 import { RenderLayer } from 'neuroglancer/sliceview/renderlayer';
+import { ChunkLayout } from 'neuroglancer/sliceview/chunk_layout';
 
 //TODO Following 2 functions are copy-pasted from neuroglancer/viewer_layout.ts because they are not exported
 //TODO Submit PR to export them in the follow-up of PR #44
@@ -335,7 +336,7 @@ function dataToOffsetPixels(slice: SliceViewPanel, point: vec3) {
 
 //TODO Find a way to count failed chunks
 /** Adapted from RenderLayer.draw() from neuroglancer/sliceview/volume/renderlayer.ts 
-*  Latest commit to renderlayer.ts 121102a4d57ab0307a9f97ef81dd8087dc7dad89 on Sep 29, 2017 " fix(sliceview): mitigate floating-point accuracy issue with vChunkPosition" */
+*  Latest commit to renderlayer.ts 5d8c31adf370891993408a41d9a531df8d342955 on Jan 11, 2018 "feat(sliceview): directly support an additional affine coordinate transform" */
 function getNumberOfMissingChunks(sliceView: SliceView, layerSelector?: (layer: RenderLayer) => boolean) {
   const layers = sliceView.visibleLayerList
     .filter(it => layerSelector ? layerSelector(it) : true);
@@ -343,10 +344,11 @@ function getNumberOfMissingChunks(sliceView: SliceView, layerSelector?: (layer: 
   return layers
     .map(layer => sliceView.visibleLayers.get(layer)!)
     .reduce((a, b) => a.concat(b), [])
-    .filter(it => it instanceof VolumeChunkSource) //Suppress errors just in case
-    .map(it => it as VolumeChunkSource)
-    .map(source => {
-      const chunkLayout = source.spec.chunkLayout;
+    .filter(it => it.source instanceof VolumeChunkSource) //Suppress errors just in case
+    .map(it => it as {chunkLayout: ChunkLayout, source: SliceViewChunkSource})
+    .map(it => {
+      const chunkLayout = it.chunkLayout;
+      const source = it.source as VolumeChunkSource;
       const chunks = source.chunks;
       const visibleChunks = sliceView.visibleChunks.get(chunkLayout);
       if (visibleChunks) {
