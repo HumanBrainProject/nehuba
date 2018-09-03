@@ -223,6 +223,8 @@ export interface Config {
 			 *  Not disabled by default because it does deteriorate user experience slightly in other cases.
 			 *  Will be deprecated when ilastik does not need it. */
 			disablePerspectiveSlicesPreloading?: boolean //TODO Deprecate
+			/** Hide axis lines in perspective view regardless of "Show axis lines" checkbox state */
+			disableAxisLinesInPerspective?: boolean
 		}
 	}
 }

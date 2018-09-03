@@ -184,7 +184,8 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
       this.drawSliceViews(renderContext);
     }
 
-    if (this.viewer.showAxisLines.value) {
+    const disableAxisLines = this.config.layout!.useNehubaPerspective!.disableAxisLinesInPerspective
+    if (this.viewer.showAxisLines.value && !disableAxisLines) {
       this.drawAxisLines();
     }
 
