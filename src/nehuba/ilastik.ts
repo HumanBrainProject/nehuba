@@ -1,6 +1,6 @@
 export interface IlastikRequest {
 	projectId: string
-	datasetUrl: string
+	datasetId: string
 }
 
 export interface IlastikResponce {

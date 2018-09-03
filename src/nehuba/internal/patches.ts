@@ -87,7 +87,7 @@ function useNehubaColorsInSegmentationRenderLayer() {
 function useNehubaMeshInSegmentationLayer() {
 	SegmentationUserLayer.prototype.addMesh = function (this: SegmentationUserLayer, meshSource: MeshSource) {
 		// this.meshLayer = new MeshLayer(this.manager.chunkManager, meshSource, this.displayState);
-		this.meshLayer = new NehubaMeshLayer(this.manager.chunkManager, meshSource, this.displayState) as any;
+		this.meshLayer = new NehubaMeshLayer(this.manager.chunkManager, meshSource, this.displayState);
 		this.addRenderLayer(this.meshLayer!);
 	};	
 }
