@@ -31,7 +31,6 @@ export function patchNeuroglancer(config: Config) {
 	if (conf.useCustomSegmentColors) useNehubaColorsInSegmentationRenderLayer(); // !!! Depends on complementary hook in `hooks.ts`
 	if (conf.useNehubaMeshLayer) useNehubaMeshInSegmentationLayer();
 	if (conf.useNehubaSingleMeshLayer) useNehubaSingleMesh();
-	if (conf.embedded) hideNeuroglancerUI();
 
 	patched = true;
 }
@@ -90,17 +89,4 @@ function useNehubaMeshInSegmentationLayer() {
 		this.meshLayer = new NehubaMeshLayer(this.manager.chunkManager, meshSource, this.displayState);
 		this.addRenderLayer(this.meshLayer!);
 	};	
-}
-
-/** This is temporary solution, not very much needed. Will be deprecated and removed. TO BE DEPRECATED  */
-function hideNeuroglancerUI() {
-	const originalMakeUI = Viewer.prototype['makeUI'];
-	Viewer.prototype['makeUI'] = function(this: Viewer) {
-		const opts: ViewerOptions = this['options'];
-		opts.showHelpButton = false;
-		opts.showLayerDialog = false;
-		opts.showLayerPanel = false;
-		opts.showLocation = false;
-		originalMakeUI.call(this);
-	}
 }

@@ -37,10 +37,6 @@ export interface Config {
 		 *  By default it should behave exactly like not patched neuroglancer SingleMeshLayer. Usage of additional capabilities is controlled by 
 		 *  'layout.useNehubaPerspective.mesh' section of this config.*/
 		useNehubaSingleMeshLayer?: boolean //Could be on by default and removed from config since patched SingleMeshLayer without further connfiguration should behave like upstream SingleMeshLayer
-
-		/** Remove top neuroglancer UI. This is quick and dirty solution by monkey-patching neuroglancer viewer, hence global. TODO find more elegant approach
-		 *  This is temporary solution, not very much needed. Will be deprecated and removed. TO BE DEPRECATED */
-		embedded?: boolean
 	}
 	/** Intercept mouse wheel events on the parent DOM element of the viewer, flip the ctrl flag and propogate further.
 	 *  Effectively tricking neuroglancer to think that ctrl button is pressed when it is not and vice versa. Togglable. */
@@ -79,6 +75,9 @@ export interface Config {
 	 *  Therefore enabling this option assumes that `setMeshesToLoad` will be called as well, otherwise threre will be no meshes at all.
 	 *  Semi-togglable, meaning that toggling will affect only freshly added layers, but not the ones already present. */
 	enableMeshLoadingControl?: boolean
+	/** Remove top neuroglancer UI. Same as calling hideNeuroglancerUI() method of the viewer after creation. Not togglable, use hideNeuroglancerUI() 
+	 *  and showNeuroglancerUI() methods instead.*/
+	hideNeuroglancerUI?: boolean
 
 	/** Neuroglancer state plus additional metadata neseccary to properly display the dataset. 
 	 *  Eventually might be stored in Knowledge Graph next to the actual data.	*/

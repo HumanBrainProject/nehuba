@@ -141,7 +141,7 @@ function flipCtrlOfMouseWheelEvent(parent: HTMLElement, config: Config) {
 		});
 		const e2 = new WheelEvent(e.type, evt);
 		(<any>e2)[customEvent] = true;
-		e.target.dispatchEvent(e2);
+		e.target!.dispatchEvent(e2);
 	}, true);
 }
 

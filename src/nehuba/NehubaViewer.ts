@@ -185,6 +185,12 @@ export class NehubaViewer {
 	applyInitialNgState() {
 		NehubaViewer.restoreInitialState(this.ngviewer, this.config);
 	}
+	hideNeuroglancerUI() {
+		this.ngviewer.showUIControls.value = false;
+	}
+	showNeuroglancerUI() {
+		this.ngviewer.showUIControls.value = true;
+	}
 
 	static create(configuration?: Config/* , container?: HTMLElement */, errorHandler?: (error: Error) => void) { //TODO Accept String id for container and lookup ElementById
 		const config = configuration || {};
@@ -202,6 +208,8 @@ export class NehubaViewer {
 		configureParent(parent, config);
 
 		let viewer = setupDefaultViewer();
+
+		if (config.hideNeuroglancerUI) viewer.showUIControls.value = false;
 
 		configureInstance(viewer, config);
 
