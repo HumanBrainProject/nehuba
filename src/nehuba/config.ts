@@ -78,6 +78,12 @@ export interface Config {
 	/** Remove top neuroglancer UI. Same as calling hideNeuroglancerUI() method of the viewer after creation. Not togglable, use hideNeuroglancerUI() 
 	 *  and showNeuroglancerUI() methods instead.*/
 	hideNeuroglancerUI?: boolean
+	/** Debouncing of onResize methods introduced by 
+	 *  	google/neuroglancer@05d6398d0995318dcce6151e7a285c9b606720b6 and
+	 *  	google/neuroglancer@c59c3d6f561fa2cf5fb9eda7d77d9f458cae3637
+	 *  causes flickering when changing state programmatically twice at the same cycle (for example `state.reset()` followed by `state.restoreState(state)`).
+	 *  This option fixes it by de-debouncing those methods back. Togglable.*/ //TODO raise an issue upstream
+	dedebounceUpdates?: boolean
 
 	/** Neuroglancer state plus additional metadata neseccary to properly display the dataset. 
 	 *  Eventually might be stored in Knowledge Graph next to the actual data.	*/

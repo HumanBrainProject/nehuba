@@ -103,8 +103,8 @@ export class NehubaLayout extends RefCounted {
       return slice;
     }
     const configureSliceViewPanel = (slice: SliceViewPanel) => {
-      //TODO Perchaps it is time for NehubaSliceViewPanel
-      dispatchRenderEvents(disableFixedPointInZoom(disableFixedPointInRotation(changeBackground(slice), config), config));
+      //TODO It is time for NehubaSliceViewPanel
+      dispatchRenderEvents(dedebounce(disableFixedPointInZoom(disableFixedPointInRotation(changeBackground(slice), config), config), config));
       return slice;
     }
 
@@ -210,6 +210,18 @@ export class NehubaLayout extends RefCounted {
   }
 }
 
+//TODO raise an issue upstream
+/** Upstream neuroglancer added debouncing of SliceViewPanel.onResize (commit c59c3d6f561fa2cf5fb9eda7d77d9f458cae3637)
+ *  which causes flicker when "Reset" is pressed (state changed programmatically twice at the same cycle). So we need to de-debounce */
+function dedebounce(slice: SliceViewPanel, config: Config) {
+  const originalOnResize = slice.onResize;
+  slice.onResize = function() {
+    if (config.dedebounceUpdates) this.sliceView.setViewportSize(this.element.clientWidth, this.element.clientHeight);
+    else originalOnResize.call(this);
+  }
+  return slice;
+}
+
 // ****** !!! Needs attention !!! ******  Even so the change is minimal - the code is forked/copy-pasted from NG and needs to be updated if changed upstream.
 // The registerActionListener block is copied from https://github.com/google/neuroglancer/blob/de7ca35dd4d9fa4e6c3166d636ee430af6da0fa0/src/neuroglancer/sliceview/panel.ts
 // Copied on 27.11.2017 (neuroglancer master commit de7ca35dd4d9fa4e6c3166d636ee430af6da0fa0).
@@ -272,7 +284,7 @@ function patchSliceView(slice: SliceViewPanel) {
  * 
  *  Until then we use the old scalebar widget
  */
-function useOldScaleBar(slice: SliceViewPanel, showScaleBar: TrackableBoolean) {
+function useOldScaleBar(slice: SliceViewPanel, showScaleBar: TrackableBoolean) { //TODO config option?
   const scaleBarWidget = slice.registerDisposer(new ScaleBarWidget());
 
   let scaleBar = scaleBarWidget.element;
@@ -338,6 +350,7 @@ function dataToOffsetPixels(slice: SliceViewPanel, point: vec3) {
 /** Adapted from RenderLayer.draw() from neuroglancer/sliceview/volume/renderlayer.ts 
 *  Latest commit to renderlayer.ts 5d8c31adf370891993408a41d9a531df8d342955 on Jan 11, 2018 "feat(sliceview): directly support an additional affine coordinate transform" */
 function getNumberOfMissingChunks(sliceView: SliceView, layerSelector?: (layer: RenderLayer) => boolean) {
+  //BTW SliceView has numVisibleChunks property now, could be useful
   const layers = sliceView.visibleLayerList
     .filter(it => layerSelector ? layerSelector(it) : true);
   if (layers.length === 0) return -1;

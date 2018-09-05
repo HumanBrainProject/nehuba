@@ -1,6 +1,7 @@
 import { Viewer } from 'neuroglancer/viewer';
 import { BoundingBox, vec3 } from 'neuroglancer/util/geom';
 import { SegmentationUserLayer } from "neuroglancer/segmentation_user_layer";
+import { DisplayContext } from 'neuroglancer/display_context';
 
 import { Config } from "nehuba/config";
 import { NehubaSegmentColorHash } from "nehuba/internal/nehuba_segment_color";
@@ -20,6 +21,8 @@ export function configureInstance(viewer: Viewer, config: Config) {
 			viewer.inputEventBindings.perspectiveView.set('at:shift+mousedown0', {action: 'nehuba-translate-via-mouse-drag', stopPropagation: true}) //Actual action listener is registered by NehubaPerspectivePanel
 		}
 	}
+
+	if (config.dedebounceUpdates) dedebounce(viewer, config);
 }
 
 export function configureParent(parent: HTMLElement, config: Config) {
@@ -82,6 +85,21 @@ function useNehubaCustomSegmentColors(viewer: Viewer) {
 		const { displayState } = layer;
 		if (!(displayState.segmentColorHash instanceof NehubaSegmentColorHash)) displayState.segmentColorHash = NehubaSegmentColorHash.from(displayState.segmentColorHash);
 	})
+}
+
+//TODO raise an issue upstream
+/** Upstream neuroglancer added debouncing of resize handling in DisplayContext (commit 05d6398d0995318dcce6151e7a285c9b606720b6)
+ *  which causes flickering when "Reset" is pressed (state changed programmatically twice at the same cycle). So we need to de-debounce */
+function dedebounce(viewer: Viewer, config: Config) {
+	const originalOnResize = viewer.display.onResize;
+	viewer.display.onResize = function(this: DisplayContext) {
+		if (config.dedebounceUpdates) {
+			this.scheduleRedraw();
+			for (let panel of this.panels) {
+			  panel.onResize();
+			}  	
+		} else originalOnResize.call(this);
+	} as any;
 }
 
 // Handled in NehubaViewer
