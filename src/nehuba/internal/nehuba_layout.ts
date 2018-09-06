@@ -4,11 +4,11 @@ import {PerspectivePanel} from 'neuroglancer/perspective_view/panel';
 import {SliceView, SliceViewChunkSource} from 'neuroglancer/sliceview/frontend';
 import {SliceViewPanel} from 'neuroglancer/sliceview/panel';
 import {TrackableBoolean, ElementVisibilityFromTrackableBoolean} from 'neuroglancer/trackable_boolean';
-import {RefCounted} from 'neuroglancer/util/disposable';
+import {RefCounted, Borrowed} from 'neuroglancer/util/disposable';
 import {removeChildren} from 'neuroglancer/util/dom';
 import {vec3, quat} from 'neuroglancer/util/geom';
 
-import { SliceViewViewerState, ViewerUIState, getCommonViewerState, DataPanelLayoutContainer } from 'neuroglancer/data_panel_layout';
+import { SliceViewViewerState, ViewerUIState, getCommonViewerState, DataPanelLayoutContainer, CrossSectionSpecificationMap } from 'neuroglancer/data_panel_layout';
 import { Viewer } from 'neuroglancer/viewer';
 // import { startRelativeMouseDrag } from 'neuroglancer/util/mouse_drag';
 
@@ -88,8 +88,9 @@ export interface LayoutEventDetail {
  * Any changes in upstream version since then must be manually applied here with care.
  */
 export class NehubaLayout extends RefCounted {
-  constructor(public container: DataPanelLayoutContainer, public rootElement: HTMLElement, public viewer: ViewerUIState) {
+  constructor(public container: DataPanelLayoutContainer, public rootElement: HTMLElement, public viewer: ViewerUIState, crossSections: Borrowed<CrossSectionSpecificationMap>) {
     super();
+    crossSections; //shut up compiler, see, I used it
 
     const config: Config = (viewer.display.container as any)[configSymbol];
     if (!config) throw new Error('Are you trying to use nehuba classes directly? Use should use defined API instead');
@@ -144,19 +145,21 @@ export class NehubaLayout extends RefCounted {
             // The correct way to fix #1 would be:
             //    perspectivePanel!.registerDisposer(slice.visibility.add(perspectivePanel!.visibility));
             // here. But to support ilastik use-case it is done in NehubaPerspectivePanel.draw(), so that slices don't request their chunks when "Slices" checkbox is unchecked
-            perspectivePanel!.sliceViews.add(slice);
+            perspectivePanel!.sliceViews.set(slice, false);
           })
         } else {
           for (let sliceView of sliceViews) {
-            perspectivePanel.sliceViews.add(sliceView.addRef());
+            perspectivePanel.sliceViews.set(sliceView.addRef(), false);
           }
         }
+        // addUnconditionalSliceViews(viewer, perspectivePanel, crossSections); //not exported in data_panel_layout
       } else {
         perspectivePanel = this.registerDisposer(
             new PerspectivePanel(display, element, perspectiveViewerState));
         for (let sliceView of sliceViews) {
-          perspectivePanel.sliceViews.add(sliceView.addRef());
-        }              
+          perspectivePanel.sliceViews.set(sliceView.addRef(), false);
+        }
+        // addUnconditionalSliceViews(viewer, perspectivePanel, crossSections); //not exported in data_panel_layout
       }
     };
 	 

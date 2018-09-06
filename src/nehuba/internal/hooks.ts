@@ -87,6 +87,7 @@ function useNehubaCustomSegmentColors(viewer: Viewer) {
 	})
 }
 
+//TODO add maintenance note
 //TODO raise an issue upstream
 /** Upstream neuroglancer added debouncing of resize handling in DisplayContext (commit 05d6398d0995318dcce6151e7a285c9b606720b6)
  *  which causes flickering when "Reset" is pressed (state changed programmatically twice at the same cycle). So we need to de-debounce */

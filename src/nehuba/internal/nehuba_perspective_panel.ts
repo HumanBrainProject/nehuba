@@ -71,7 +71,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
 		const mode = (removeBgConfig && removeBgConfig.mode) || 'none';
     this.nehubaSliceViewRenderHelper = this.registerDisposer(NehubaSliceViewRenderHelper.get(this.gl, perspectivePanelEmit/*sliceViewPanelEmitColor*/, mode));
     
-    this.registerDisposer(this.visibility.changed.add(() => this.sliceViews.forEach(slice => slice.visibility.value = this.visibility.value)));
+    this.registerDisposer(this.visibility.changed.add(() => Array.from(this.sliceViews.keys()).forEach(slice => slice.visibility.value = this.visibility.value)));
 	}	
 
 	updateProjectionMatrix() {
@@ -92,7 +92,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
 	}
 
   draw() {
-    for (let sliceView of this.sliceViews) {
+    for (let sliceView of this.sliceViews.keys()) {
       if (this.config.layout!.useNehubaPerspective!.disablePerspectiveSlicesPreloading) {
         sliceView.visibility.value = (this.viewer.showSliceViews.value && this.visibility.visible) ? WatchableVisibilityPriority.VISIBLE : WatchableVisibilityPriority.IGNORED;
       } else sliceView.visibility.value = this.visibility.value;
@@ -106,8 +106,9 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
       return;
     }
 
-    if (this.viewer.showSliceViews.value) {
-      for (let sliceView of this.sliceViews) {
+    const showSliceViews = this.viewer.showSliceViews.value;
+    for (const [sliceView, unconditional] of this.sliceViews) {
+      if (unconditional || showSliceViews) {
         sliceView.updateRendering();
       }
     }
@@ -180,7 +181,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     }
 
     const waitForMesh =  this.config.layout!.useNehubaPerspective!.waitForMesh;
-    if (this.viewer.showSliceViews.value && (!waitForMesh || renderContext.extra.meshRendered)) {
+    if (!waitForMesh || renderContext.extra.meshRendered) {
       this.drawSliceViews(renderContext);
     }
 
@@ -261,12 +262,16 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     let {sliceViewRenderHelper, nehubaSliceViewRenderHelper, transparentPlaneRenderHelper} = this;
     let {lightDirection, ambientLighting, directionalLighting, dataToDevice} = renderContext;
 
+    const showSliceViews = this.viewer.showSliceViews.value;
     if (!conf.hideImages) {
       const removeBgConfig = conf.removePerspectiveSlicesBackground;
       const render = removeBgConfig ? nehubaSliceViewRenderHelper : sliceViewRenderHelper;
-      for (let sliceView of this.sliceViews) {
-        if (sliceView.width === 0 || sliceView.height === 0) {
+      for (const [sliceView, unconditional] of this.sliceViews) {
+        if (!unconditional && !showSliceViews) {
           continue;
+        }
+        if (sliceView.width === 0 || sliceView.height === 0 || !sliceView.hasValidViewport) {
+            continue;
         }
         let scalar = Math.abs(vec3.dot(lightDirection, sliceView.viewportAxes[2]));
         let factor = ambientLighting + scalar * directionalLighting;
@@ -288,9 +293,9 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
       }
     }
     // Reverse-order, we actually draw substrate after the slice. 
-    if (conf.drawSubstrates) {
+    if (conf.drawSubstrates && showSliceViews) {
       const m = (conf.fixedZoomPerspectiveSlices && conf.fixedZoomPerspectiveSlices.sliceViewportSizeMultiplier) || 1.0 ;
-      for (let sliceView of this.sliceViews) {
+      for (let sliceView of this.sliceViews.keys()) {
         let mat = tempMat4;
         // Need a matrix that maps (+1, +1, 0) to projectionMat * (width, height, 0)
         mat4.identity(mat);
@@ -321,7 +326,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
       }
     }
 
-    if (conf.drawZoomLevels) {
+    if (conf.drawZoomLevels && showSliceViews) {
       const cutOff = conf.drawZoomLevels.cutOff;
       // console.log((<any>this.viewer).slicesNavigationState.zoomFactor.value);
       if (cutOff && (<any>this.viewer).slicesNavigationState.zoomFactor.value < cutOff) {

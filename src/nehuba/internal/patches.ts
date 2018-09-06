@@ -24,8 +24,8 @@ export function patchNeuroglancer(config: Config) {
 	/** Install NehubaLayout as the only layout used by neuroglancer */
 	if (conf.useNehubaLayout) {
 		LAYOUTS.clear();
-		LAYOUTS.set('4panel', {factory: (container, element, viewer) => new NehubaLayout(container, element, viewer)});
-		LAYOUTS.set('xy', {factory: (container, element, viewer) => new NehubaLayout(container, element, viewer)}); // Needed only for split views to work. 'xy' is default layout when splitting the view //TODO Actually implement other NG layouts
+		LAYOUTS.set('4panel', {factory: (container, element, viewer, crossSections) => new NehubaLayout(container, element, viewer, crossSections)});
+		LAYOUTS.set('xy', {factory: (container, element, viewer, crossSections) => new NehubaLayout(container, element, viewer, crossSections)}); // Needed only for split views to work. 'xy' is default layout when splitting the view //TODO Actually implement other NG layouts
 	}
 	if (conf.hideNullImageValues) fix_HideNullImageValues();
 	if (conf.useCustomSegmentColors) useNehubaColorsInSegmentationRenderLayer(); // !!! Depends on complementary hook in `hooks.ts`
