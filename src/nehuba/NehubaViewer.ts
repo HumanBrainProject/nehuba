@@ -186,10 +186,10 @@ export class NehubaViewer {
 		NehubaViewer.restoreInitialState(this.ngviewer, this.config);
 	}
 	hideNeuroglancerUI() {
-		this.ngviewer.showUIControls.value = false;
+		this.ngviewer.uiConfiguration.showUIControls.value = false;
 	}
 	showNeuroglancerUI() {
-		this.ngviewer.showUIControls.value = true;
+		this.ngviewer.uiConfiguration.showUIControls.value = true;
 	}
 	get crossSectionBackground() {
 		return this.ngviewer.crossSectionBackgroundColor.value;
@@ -218,7 +218,7 @@ export class NehubaViewer {
 
 		let viewer = setupDefaultViewer();
 
-		if (config.hideNeuroglancerUI) viewer.showUIControls.value = false;
+		if (config.hideNeuroglancerUI) viewer.uiConfiguration.showUIControls.value = false;
 		this.setCrossSectionBackgroundFromConfig(viewer, config);
 
 		configureInstance(viewer, config);
