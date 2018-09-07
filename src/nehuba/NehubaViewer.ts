@@ -197,6 +197,9 @@ export class NehubaViewer {
 	set crossSectionBackground(color: vec3) {
 		this.ngviewer.crossSectionBackgroundColor.value = color;
 	}
+	restoreState(state: any) {
+		NehubaViewer.restoreViewerState(this.ngviewer, state, this.config);
+	}
 
 	static create(configuration?: Config/* , container?: HTMLElement */, errorHandler?: (error: Error) => void) { //TODO Accept String id for container and lookup ElementById
 		const config = configuration || {};
@@ -216,8 +219,7 @@ export class NehubaViewer {
 		let viewer = setupDefaultViewer();
 
 		if (config.hideNeuroglancerUI) viewer.showUIControls.value = false;
-		const bg = (config.dataset && config.dataset.imageBackground) || config.crossSectionBackground;
-		if (bg) viewer.crossSectionBackgroundColor.value = bg;
+		this.setCrossSectionBackgroundFromConfig(viewer, config);
 
 		configureInstance(viewer, config);
 
@@ -226,6 +228,11 @@ export class NehubaViewer {
 		}
 
 		return new NehubaViewer(viewer, config, errorHandler);
+	}
+
+	private static setCrossSectionBackgroundFromConfig(viewer: Viewer, config: Config) {
+		const bg = (config.dataset && config.dataset.imageBackground) || config.crossSectionBackground;
+		if (bg) viewer.crossSectionBackgroundColor.value = bg;
 	}
 
 	get config() { return this._config; }
@@ -363,7 +370,13 @@ export class NehubaViewer {
 
 	private static restoreInitialState(viewer: Viewer, config: Config) {
 		const state = config.dataset && config.dataset.initialNgState;
-		state && viewer.state.restoreState(state);
+		state && this.restoreViewerState(viewer, state, config);
+	}
+
+	private static restoreViewerState(viewer: Viewer, state: any, config: Config) {
+		viewer.state.reset(); //Needed to reset from split view, reset obliqe slicing, reset slices checkbox etc...
+		viewer.state.restoreState(state);
+		if (!state.crossSectionBackgroundColor) NehubaViewer.setCrossSectionBackgroundFromConfig(viewer, config);
 	}
 
 	private checkRGB(color: {red:number, green: number, blue: number}) {
