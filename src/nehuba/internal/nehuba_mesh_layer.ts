@@ -168,10 +168,8 @@ export function getValuesForClipping(extra: ExtraRenderContext): ValuesForClippi
 
     const backFaceColor = 
       (conf && conf.backFaceColor) || 
-      (extra && extra.config && extra.config.layout && extra.config.layout.useNehubaPerspective && extra.config.layout.useNehubaPerspective.perspectiveSlicesBackground) ||
-      (extra && extra.config && extra.config.layout && extra.config.layout.planarSlicesBackground) ||
-      (extra && extra.config.dataset && extra.config.dataset.imageBackground) || 
-      vec4.fromValues(0.5, 0.5, 0.5, 1);
+		(extra && extra.config && extra.config.layout && extra.config.layout.useNehubaPerspective && extra.config.layout.useNehubaPerspective.perspectiveSlicesBackground) ||
+		(extra && extra.crossSectionBackground)
 
     const navState = mat4.create();
     let octant = (conf && conf.removeOctant) || vec4.fromValues(0.0, 0.0, 0.0, 0.0);
@@ -199,7 +197,7 @@ export function getValuesForClipping(extra: ExtraRenderContext): ValuesForClippi
       //   octant[3] = octant[3] < 0.0 ? -1.0 : 1.0;
       }
     }
-    return {navState, octant, backFaceColor};
+    return {navState, octant, backFaceColor: vec4.fromValues(backFaceColor[0], backFaceColor[1], backFaceColor[2], 1.0)};
 }
 
 export class VisibleSegmentsWrapper extends SharedObject implements Uint64Set {

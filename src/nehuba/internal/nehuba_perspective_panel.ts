@@ -37,6 +37,7 @@ export interface ExtraRenderContext {
   /** Value of -1 indicates that there are no visible segmentation layers */
   meshFragmentsLoaded: number
   lastMeshId?: string
+  crossSectionBackground: vec3
 }
 
 export class NehubaPerspectivePanel extends PerspectivePanel {
@@ -123,10 +124,8 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     const conf = this.config.layout!.useNehubaPerspective!;
     const bg = conf.perspectiveBackground
       || conf.perspectiveSlicesBackground 
-      || this.config.layout!.planarSlicesBackground 
-      || (this.config.dataset && this.config.dataset.imageBackground) 
-      ||  vec4.fromValues(0.5, 0.5, 0.5, 1);
-    this.gl.clearColor(bg[0], bg[1], bg[2], bg[3]);
+      || this.viewer.crossSectionBackgroundColor.value;
+    this.gl.clearColor(bg[0], bg[1], bg[2], 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     gl.enable(gl.DEPTH_TEST);
@@ -163,7 +162,8 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
         perspectiveNavigationState: this.viewer.navigationState,
         // meshRendered: false
         meshesLoaded: -1,
-        meshFragmentsLoaded: -1
+        meshFragmentsLoaded: -1,
+        crossSectionBackground: this.viewer.crossSectionBackgroundColor.value
       }
     };
 
@@ -282,8 +282,13 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
         mat[5] = -sliceView.height / 2.0;
         mat4.multiply(mat, sliceView.viewportToData, mat);
         mat4.multiply(mat, dataToDevice, mat);
-
-        const backgroundColor = conf.perspectiveSlicesBackground || this.config.layout!.planarSlicesBackground || (this.config.dataset && this.config.dataset.imageBackground) ||  vec4.fromValues(0.5, 0.5, 0.5, 1);
+        const backgroundColor = vec4.create();
+        const crossSectionBackgroundColor = conf.perspectiveSlicesBackground || this.viewer.crossSectionBackgroundColor.value;
+        backgroundColor[0] = crossSectionBackgroundColor[0];
+        backgroundColor[1] = crossSectionBackgroundColor[1];
+        backgroundColor[2] = crossSectionBackgroundColor[2];
+        backgroundColor[3] = 1;
+  
         const discardColor = (removeBgConfig && removeBgConfig.color) || backgroundColor;
         nehubaSliceViewRenderHelper.setDiscardColor(discardColor);
         render.draw(

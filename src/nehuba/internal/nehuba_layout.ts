@@ -98,14 +98,9 @@ export class NehubaLayout extends RefCounted {
 
     layoutConfig.useNehubaPerspective && !layoutConfig.useNehubaPerspective.doNotRestrictUserNavigation && restrictUserNavigation(viewer as Viewer);
 
-    const bg = layoutConfig.planarSlicesBackground || (config.dataset && config.dataset.imageBackground);
-    const changeBackground = (slice: SliceViewPanel) => {
-      bg && (slice['backgroundColor'] = bg);
-      return slice;
-    }
     const configureSliceViewPanel = (slice: SliceViewPanel) => {
       //TODO It is time for NehubaSliceViewPanel
-      dispatchRenderEvents(dedebounce(disableFixedPointInZoom(disableFixedPointInRotation(changeBackground(slice), config), config), config));
+      dispatchRenderEvents(dedebounce(disableFixedPointInZoom(disableFixedPointInRotation(slice, config), config), config));
       return slice;
     }
 

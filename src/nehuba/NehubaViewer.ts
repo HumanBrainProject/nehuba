@@ -191,6 +191,12 @@ export class NehubaViewer {
 	showNeuroglancerUI() {
 		this.ngviewer.showUIControls.value = true;
 	}
+	get crossSectionBackground() {
+		return this.ngviewer.crossSectionBackgroundColor.value;
+	}
+	set crossSectionBackground(color: vec3) {
+		this.ngviewer.crossSectionBackgroundColor.value = color;
+	}
 
 	static create(configuration?: Config/* , container?: HTMLElement */, errorHandler?: (error: Error) => void) { //TODO Accept String id for container and lookup ElementById
 		const config = configuration || {};
@@ -210,6 +216,8 @@ export class NehubaViewer {
 		let viewer = setupDefaultViewer();
 
 		if (config.hideNeuroglancerUI) viewer.showUIControls.value = false;
+		const bg = (config.dataset && config.dataset.imageBackground) || config.crossSectionBackground;
+		if (bg) viewer.crossSectionBackgroundColor.value = bg;
 
 		configureInstance(viewer, config);
 
