@@ -31,6 +31,7 @@ function getCommonPerspectiveViewerState(viewer: ViewerUIState) {
     ...getCommonViewerState(viewer),
     navigationState: viewer.perspectiveNavigationState,
     inputEventMap: viewer.inputEventBindings.perspectiveView,
+    rpc: viewer.chunkManager.rpc!,
   };
 }
 function getCommonSliceViewerState(viewer: ViewerUIState) {
@@ -147,14 +148,14 @@ export class NehubaLayout extends RefCounted {
             perspectivePanel.sliceViews.set(sliceView.addRef(), false);
           }
         }
-        // addUnconditionalSliceViews(viewer, perspectivePanel, crossSections); //not exported in data_panel_layout
+        // addUnconditionalSliceViews(viewer, perspectivePanel, crossSections); //not exported in data_panel_layout //TODO Submit PR to export them in the follow-up of PR #44
       } else {
         perspectivePanel = this.registerDisposer(
             new PerspectivePanel(display, element, perspectiveViewerState));
         for (let sliceView of sliceViews) {
           perspectivePanel.sliceViews.set(sliceView.addRef(), false);
         }
-        // addUnconditionalSliceViews(viewer, perspectivePanel, crossSections); //not exported in data_panel_layout
+        // addUnconditionalSliceViews(viewer, perspectivePanel, crossSections); //not exported in data_panel_layout //TODO Submit PR to export them in the follow-up of PR #44
       }
     };
 	 
