@@ -8,6 +8,7 @@ import {ActionEvent, registerActionListener} from 'neuroglancer/util/event_actio
 import { PerspectivePanel, PerspectiveViewerState, perspectivePanelEmit, OffscreenTextures, perspectivePanelEmitOIT } from "neuroglancer/perspective_view/panel";
 import { quat } from 'neuroglancer/util/geom';
 import { NavigationState, Pose } from 'neuroglancer/navigation_state';
+import {GL_BLEND, GL_COLOR_BUFFER_BIT, GL_DEPTH_TEST, GL_LEQUAL, GL_LESS, GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_POLYGON_OFFSET_FILL, GL_SRC_ALPHA, GL_ZERO} from 'neuroglancer/webgl/constants';
 
 import { NehubaSliceViewRenderHelper, TransparentPlaneRenderHelper } from "nehuba/internal/nehuba_renderers";
 import { Config } from "nehuba/config";
@@ -171,10 +172,16 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
 
     let hasTransparent = false;
 
+    let hasAnnotation = false;
+
     // Draw fully-opaque layers first.
     for (let renderLayer of visibleLayers) {
       if (!renderLayer.isTransparent) {
-        renderLayer.draw(renderContext);
+        if (!renderLayer.isAnnotation) {
+          renderLayer.draw(renderContext);
+        } else {
+          hasAnnotation = true;
+        }
       } else {
         hasTransparent = true;
       }
@@ -185,6 +192,33 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
       this.drawSliceViews(renderContext);
     }
 
+    if (hasAnnotation) {
+      gl.enable(GL_BLEND);
+      gl.depthFunc(GL_LEQUAL);
+      gl.blendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+      // Render only to the color buffer, but not the pick or z buffer.  With blending enabled, the
+      // z and color values would be corrupted.
+      gl.WEBGL_draw_buffers.drawBuffersWEBGL([
+        gl.WEBGL_draw_buffers.COLOR_ATTACHMENT0_WEBGL,
+        gl.NONE,
+        gl.NONE,
+      ]);
+      renderContext.emitPickID = false;
+
+      for (let renderLayer of visibleLayers) {
+        if (renderLayer.isAnnotation) {
+          renderLayer.draw(renderContext);
+        }
+      }
+      gl.depthFunc(GL_LESS);
+      gl.disable(GL_BLEND);
+      gl.WEBGL_draw_buffers.drawBuffersWEBGL([
+        gl.WEBGL_draw_buffers.COLOR_ATTACHMENT0_WEBGL,
+        gl.WEBGL_draw_buffers.COLOR_ATTACHMENT1_WEBGL,
+        gl.WEBGL_draw_buffers.COLOR_ATTACHMENT2_WEBGL,
+      ]);
+      renderContext.emitPickID = true;
+    }
     const disableAxisLines = this.config.layout!.useNehubaPerspective!.disableAxisLinesInPerspective
     if (this.viewer.showAxisLines.value && !disableAxisLines) {
       this.drawAxisLines();
@@ -194,15 +228,15 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     if (hasTransparent) {
       // Draw transparent objects.
       gl.depthMask(false);
-      gl.enable(gl.BLEND);
+      gl.enable(GL_BLEND);
 
       // Compute accumulate and revealage textures.
       const transparentConfiguration = this['transparentConfiguration']; // const {transparentConfiguration} = this; // TODO PR #44 promoted wrong member!!! We need GETTER to be protected, so increse `private get transparentConfiguration()` and decrease `transparentConfiguration_` back to private
       transparentConfiguration.bind(width, height);
       this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.clear(GL_COLOR_BUFFER_BIT);
       renderContext.emitter = perspectivePanelEmitOIT;
-      gl.blendFuncSeparate(gl.ONE, gl.ONE, gl.ZERO, gl.ONE_MINUS_SRC_ALPHA);
+      gl.blendFuncSeparate(GL_ONE, GL_ONE, GL_ZERO, GL_ONE_MINUS_SRC_ALPHA);
       renderContext.emitPickID = false;
       for (let renderLayer of visibleLayers) {
         if (renderLayer.isTransparent) {
@@ -211,16 +245,16 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
       }
 
       // Copy transparent rendering result back to primary buffer.
-      gl.disable(gl.DEPTH_TEST);
+      gl.disable(GL_DEPTH_TEST);
       this.offscreenFramebuffer.bindSingle(OffscreenTextures.COLOR);
-      gl.blendFunc(gl.ONE_MINUS_SRC_ALPHA, gl.SRC_ALPHA);
+      gl.blendFunc(GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA);
       this.transparencyCopyHelper.draw(
           transparentConfiguration.colorBuffers[0].texture,
           transparentConfiguration.colorBuffers[1].texture);
 
       gl.depthMask(true);
-      gl.disable(gl.BLEND);
-      gl.enable(gl.DEPTH_TEST);
+      gl.disable(GL_BLEND);
+      gl.enable(GL_DEPTH_TEST);
 
       // Restore framebuffer attachments.
       this.offscreenFramebuffer.bind(width, height);
@@ -234,12 +268,16 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     renderContext.emitter = perspectivePanelEmit;
     renderContext.emitPickID = true;
     renderContext.emitColor = false;
+
+    // Offset z values forward so that we reliably write pick IDs and depth information even though
+    // we've already done one drawing pass.
+    gl.enable(GL_POLYGON_OFFSET_FILL);
+    gl.polygonOffset(-1, -1);
     for (let renderLayer of visibleLayers) {
-      renderContext.alreadyEmittedPickID = !renderLayer.isTransparent;
+      renderContext.alreadyEmittedPickID = !renderLayer.isTransparent && !renderLayer.isAnnotation;
       renderLayer.draw(renderContext);
     }
-
-    gl.disable(gl.DEPTH_TEST);
+    gl.disable(GL_POLYGON_OFFSET_FILL);
     this.offscreenFramebuffer.unbind();
 
     // Draw the texture over the whole viewport.
