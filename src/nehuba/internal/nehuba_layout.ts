@@ -24,13 +24,16 @@ import { ChunkState } from 'neuroglancer/chunk_manager/base';
 import { RenderLayer } from 'neuroglancer/sliceview/renderlayer';
 import { ChunkLayout } from 'neuroglancer/sliceview/chunk_layout';
 
-//TODO Following 2 functions are copy-pasted from neuroglancer/viewer_layout.ts because they are not exported
+//TODO Following 2 functions are copy-pasted from neuroglancer/data_panel_layout.ts because they are not exported
 //TODO Submit PR to export them in the follow-up of PR #44
-function getCommonPerspectiveViewerState(viewer: ViewerUIState) {
+function getCommonPerspectiveViewerState(container: DataPanelLayoutContainer) {
+  const {viewer} = container;
   return {
     ...getCommonViewerState(viewer),
     navigationState: viewer.perspectiveNavigationState,
     inputEventMap: viewer.inputEventBindings.perspectiveView,
+    orthographicProjection: container.specification.orthographicProjection,
+    showScaleBar: viewer.showScaleBar,
     rpc: viewer.chunkManager.rpc!,
   };
 }
@@ -162,7 +165,7 @@ export class NehubaLayout extends RefCounted {
     let {display} = viewer;
 
     const perspectiveViewerState = {
-      ...getCommonPerspectiveViewerState(viewer),
+      ...getCommonPerspectiveViewerState(container),
       showSliceViews: viewer.showPerspectiveSliceViews,
       showSliceViewsCheckbox: !layoutConfig.hideSliceViewsCheckbox,
       slicesNavigationState: viewer.navigationState //!!! Passed down to NehubaPerspectivePanel in the 'untyped' way. Was already deleted once by mistake. Be careful.

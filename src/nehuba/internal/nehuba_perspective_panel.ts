@@ -13,6 +13,9 @@ import {GL_BLEND, GL_COLOR_BUFFER_BIT, GL_DEPTH_TEST, GL_LEQUAL, GL_LESS, GL_ONE
 import { NehubaSliceViewRenderHelper, TransparentPlaneRenderHelper } from "nehuba/internal/nehuba_renderers";
 import { Config } from "nehuba/config";
 import { WatchableVisibilityPriority } from 'neuroglancer/visibility_priority/frontend';
+import { ScaleBarWidget } from 'nehuba/internal/rescued/old_scale_bar';
+import { ElementVisibilityFromTrackableBoolean } from 'neuroglancer/trackable_boolean';
+import { makeDerivedWatchableValue } from 'neuroglancer/trackable_value';
 
 const tempVec3 = vec3.create();
 const tempMat4 = mat4.create();
@@ -47,7 +50,8 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
 	nehubaSliceViewRenderHelper: NehubaSliceViewRenderHelper;
 		// this.registerDisposer(SliceViewRenderHelper.get(this.gl, perspectivePanelEmit));
 	transparentPlaneRenderHelper =
-		this.registerDisposer(TransparentPlaneRenderHelper.get(this.gl, perspectivePanelEmit));
+    this.registerDisposer(TransparentPlaneRenderHelper.get(this.gl, perspectivePanelEmit));
+  scaleBarWidget = this.registerDisposer(new ScaleBarWidget());
 
 	constructor(context: DisplayContext, element: HTMLElement, viewer: PerspectiveViewerState, private config: Config) {
 		super(context, element, viewer);
@@ -74,6 +78,12 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     this.nehubaSliceViewRenderHelper = this.registerDisposer(NehubaSliceViewRenderHelper.get(this.gl, perspectivePanelEmit/*sliceViewPanelEmitColor*/, mode));
     
     this.registerDisposer(this.visibility.changed.add(() => Array.from(this.sliceViews.keys()).forEach(slice => slice.visibility.value = this.visibility.value)));
+
+    const scaleBar = this.scaleBarWidget.element;
+    const showScaleBar = viewer.showScaleBar;
+    const orthographicProjection = viewer.orthographicProjection;
+    this.registerDisposer(new ElementVisibilityFromTrackableBoolean(makeDerivedWatchableValue((a, b) => a && b, showScaleBar, orthographicProjection), scaleBar));
+    element.appendChild(scaleBar);
 	}	
 
 	updateProjectionMatrix() {
@@ -278,6 +288,45 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
       renderLayer.draw(renderContext);
     }
     gl.disable(GL_POLYGON_OFFSET_FILL);
+
+    /** Neuroglancer renders the scalebar with WebGL instead of separate HTML element.
+     * 
+     *  THE PROBLEM: Clear and very disturbing regression of visual experience on highdpi screens.
+     *  Since neuroglancer is not highdpi-aware, new scalebar is rendered in low dpi and because it contains text,
+     *  this mismatch of dpi is clearly visible.
+     * 
+     *  THE SOLUTION: Take an opportunity to make the whole neuroglancer render in highdpi. TODO submmit upstream.
+     * 
+     *  Until then we use the old scalebar widget
+     */
+    if (this.viewer.showScaleBar.value && this.viewer.orthographicProjection.value) {
+      const { dimensions } = this.scaleBarWidget;
+      dimensions.targetLengthInPixels = Math.min(width / 4, 100);
+      dimensions.nanometersPerPixel = this['nanometersPerPixel']; //this.nanometersPerPixel; //TODO Submit PR to make protected in the follow-up of PR #44
+      this.scaleBarWidget.update();
+    }
+
+     /* Original neuroglancer code modulo access to private properties: */
+    // if (this.viewer.showScaleBar.value && this.viewer.orthographicProjection.value) {
+    //   // Only modify color buffer.
+    //   gl.WEBGL_draw_buffers.drawBuffersWEBGL([
+    //     gl.WEBGL_draw_buffers.COLOR_ATTACHMENT0_WEBGL,
+    //   ]);
+
+    //   gl.disable(GL_DEPTH_TEST);
+    //   gl.enable(GL_BLEND);
+    //   gl.blendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    //   const scaleBarTexture = this['scaleBarTexture']; //const {scaleBarTexture} = this; //TODO Submit PR to make protected in the follow-up of PR #44
+    //   const {dimensions} = scaleBarTexture;
+    //   dimensions.targetLengthInPixels = Math.min(width / 4, 100);
+    //   dimensions.nanometersPerPixel = this['nanometersPerPixel']; //this.nanometersPerPixel; //TODO Submit PR to make protected in the follow-up of PR #44
+    //   scaleBarTexture.update();
+    //   gl.viewport(10, 10, scaleBarTexture.width, scaleBarTexture.height);
+    //   const scaleBarCopyHelper = this['scaleBarCopyHelper']; //TODO Submit PR to make protected in the follow-up of PR #44
+    //   /* this. */scaleBarCopyHelper.draw(scaleBarTexture.texture);
+    //   gl.disable(GL_BLEND);
+    // }
+
     this.offscreenFramebuffer.unbind();
 
     // Draw the texture over the whole viewport.
