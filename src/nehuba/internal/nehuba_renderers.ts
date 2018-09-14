@@ -13,7 +13,7 @@ import { removeBackgroundMode } from "nehuba/config";
  * 
  * This class started as a copy of SliceViewRenderHelper from https://github.com/google/neuroglancer/blob/9c78cd512a722f3fe9ed097155b6f64f48b8d1c9/src/neuroglancer/sliceview/frontend.ts 
  * Copied on 17.07.2017 (neuroglancer master commit 9c78cd512a722f3fe9ed097155b6f64f48b8d1c9) and renamed.
- * Latest commit to frontend.ts 736b20335d4349d8a252bd37e33d343cb73294de on May 21, 2017 "feat: Add Viewer-level prefetching support."
+ * Latest commit to frontend.ts 2f6e14f826a01c53cb2757666ae99d46ea3d8149 on Sep 3, 2018 "feat(webgl): Switch to WebGL2 and GLSL 300 ES"
  * Any changes in upstream version since then must be manually applied here with care.
  * 
  * Adds the ability to remove background from slice by discarding pixels with color greater, less or equal to the specified {discardColor}
@@ -44,14 +44,14 @@ export class NehubaSliceViewRenderHelper extends RefCounted {
     builder.addUniform('vec4', 'uDiscardColor');
     builder.require(emitter);
 let originalFragment = `
-vec4 sampledColor = texture2D(uSampler, vTexCoord);
+vec4 sampledColor = texture(uSampler, vTexCoord);
 if (sampledColor.a == 0.0) {
   sampledColor = uBackgroundColor;
 }
 emit(sampledColor * uColorFactor, vec4(0,0,0,0));
 `;
 let nehubaFragment = `
-vec4 sampledColor = texture2D(uSampler, vTexCoord);
+vec4 sampledColor = texture(uSampler, vTexCoord);
 if (sampledColor.a == 0.0) {
   sampledColor = uBackgroundColor;
 }

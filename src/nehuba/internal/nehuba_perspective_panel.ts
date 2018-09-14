@@ -8,7 +8,6 @@ import {ActionEvent, registerActionListener} from 'neuroglancer/util/event_actio
 import { PerspectivePanel, PerspectiveViewerState, perspectivePanelEmit, OffscreenTextures, perspectivePanelEmitOIT } from "neuroglancer/perspective_view/panel";
 import { quat } from 'neuroglancer/util/geom';
 import { NavigationState, Pose } from 'neuroglancer/navigation_state';
-import {GL_BLEND, GL_COLOR_BUFFER_BIT, GL_DEPTH_TEST, GL_LEQUAL, GL_LESS, GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_POLYGON_OFFSET_FILL, GL_SRC_ALPHA, GL_ZERO} from 'neuroglancer/webgl/constants';
 
 import { NehubaSliceViewRenderHelper, TransparentPlaneRenderHelper } from "nehuba/internal/nehuba_renderers";
 import { Config } from "nehuba/config";
@@ -203,13 +202,13 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     }
 
     if (hasAnnotation) {
-      gl.enable(GL_BLEND);
-      gl.depthFunc(GL_LEQUAL);
-      gl.blendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+      gl.enable(WebGL2RenderingContext.BLEND);
+      gl.depthFunc(WebGL2RenderingContext.LEQUAL);
+      gl.blendFunc(WebGL2RenderingContext.SRC_ALPHA, WebGL2RenderingContext.ONE_MINUS_SRC_ALPHA);
       // Render only to the color buffer, but not the pick or z buffer.  With blending enabled, the
       // z and color values would be corrupted.
-      gl.WEBGL_draw_buffers.drawBuffersWEBGL([
-        gl.WEBGL_draw_buffers.COLOR_ATTACHMENT0_WEBGL,
+      gl.drawBuffers([
+        gl.COLOR_ATTACHMENT0,
         gl.NONE,
         gl.NONE,
       ]);
@@ -220,12 +219,12 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
           renderLayer.draw(renderContext);
         }
       }
-      gl.depthFunc(GL_LESS);
-      gl.disable(GL_BLEND);
-      gl.WEBGL_draw_buffers.drawBuffersWEBGL([
-        gl.WEBGL_draw_buffers.COLOR_ATTACHMENT0_WEBGL,
-        gl.WEBGL_draw_buffers.COLOR_ATTACHMENT1_WEBGL,
-        gl.WEBGL_draw_buffers.COLOR_ATTACHMENT2_WEBGL,
+      gl.depthFunc(WebGL2RenderingContext.LESS);
+      gl.disable(WebGL2RenderingContext.BLEND);
+      gl.drawBuffers([
+        gl.COLOR_ATTACHMENT0,
+        gl.COLOR_ATTACHMENT1,
+        gl.COLOR_ATTACHMENT2,
       ]);
       renderContext.emitPickID = true;
     }
@@ -238,15 +237,15 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     if (hasTransparent) {
       // Draw transparent objects.
       gl.depthMask(false);
-      gl.enable(GL_BLEND);
+      gl.enable(WebGL2RenderingContext.BLEND);
 
       // Compute accumulate and revealage textures.
       const transparentConfiguration = this['transparentConfiguration']; // const {transparentConfiguration} = this; // TODO PR #44 promoted wrong member!!! We need GETTER to be protected, so increse `private get transparentConfiguration()` and decrease `transparentConfiguration_` back to private
       transparentConfiguration.bind(width, height);
       this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
-      gl.clear(GL_COLOR_BUFFER_BIT);
+      gl.clear(WebGL2RenderingContext.COLOR_BUFFER_BIT);
       renderContext.emitter = perspectivePanelEmitOIT;
-      gl.blendFuncSeparate(GL_ONE, GL_ONE, GL_ZERO, GL_ONE_MINUS_SRC_ALPHA);
+      gl.blendFuncSeparate(WebGL2RenderingContext.ONE, WebGL2RenderingContext.ONE, WebGL2RenderingContext.ZERO, WebGL2RenderingContext.ONE_MINUS_SRC_ALPHA);
       renderContext.emitPickID = false;
       for (let renderLayer of visibleLayers) {
         if (renderLayer.isTransparent) {
@@ -255,25 +254,25 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
       }
 
       // Copy transparent rendering result back to primary buffer.
-      gl.disable(GL_DEPTH_TEST);
+      gl.disable(WebGL2RenderingContext.DEPTH_TEST);
       this.offscreenFramebuffer.bindSingle(OffscreenTextures.COLOR);
-      gl.blendFunc(GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA);
+      gl.blendFunc(WebGL2RenderingContext.ONE_MINUS_SRC_ALPHA, WebGL2RenderingContext.SRC_ALPHA);
       this.transparencyCopyHelper.draw(
           transparentConfiguration.colorBuffers[0].texture,
           transparentConfiguration.colorBuffers[1].texture);
 
       gl.depthMask(true);
-      gl.disable(GL_BLEND);
-      gl.enable(GL_DEPTH_TEST);
+      gl.disable(WebGL2RenderingContext.BLEND);
+      gl.enable(WebGL2RenderingContext.DEPTH_TEST);
 
       // Restore framebuffer attachments.
       this.offscreenFramebuffer.bind(width, height);
     }
 
     // Do picking only rendering pass.
-    gl.WEBGL_draw_buffers.drawBuffersWEBGL([
-      gl.NONE, gl.WEBGL_draw_buffers.COLOR_ATTACHMENT1_WEBGL,
-      gl.WEBGL_draw_buffers.COLOR_ATTACHMENT2_WEBGL
+    gl.drawBuffers([
+      gl.NONE, gl.COLOR_ATTACHMENT1,
+      gl.COLOR_ATTACHMENT2
     ]);
     renderContext.emitter = perspectivePanelEmit;
     renderContext.emitPickID = true;
@@ -281,13 +280,13 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
 
     // Offset z values forward so that we reliably write pick IDs and depth information even though
     // we've already done one drawing pass.
-    gl.enable(GL_POLYGON_OFFSET_FILL);
+    gl.enable(WebGL2RenderingContext.POLYGON_OFFSET_FILL);
     gl.polygonOffset(-1, -1);
     for (let renderLayer of visibleLayers) {
       renderContext.alreadyEmittedPickID = !renderLayer.isTransparent && !renderLayer.isAnnotation;
       renderLayer.draw(renderContext);
     }
-    gl.disable(GL_POLYGON_OFFSET_FILL);
+    gl.disable(WebGL2RenderingContext.POLYGON_OFFSET_FILL);
 
     /** Neuroglancer renders the scalebar with WebGL instead of separate HTML element.
      * 
@@ -309,22 +308,27 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
      /* Original neuroglancer code modulo access to private properties: */
     // if (this.viewer.showScaleBar.value && this.viewer.orthographicProjection.value) {
     //   // Only modify color buffer.
-    //   gl.WEBGL_draw_buffers.drawBuffersWEBGL([
-    //     gl.WEBGL_draw_buffers.COLOR_ATTACHMENT0_WEBGL,
+    //   gl.drawBuffers([
+    //     gl.COLOR_ATTACHMENT0,
     //   ]);
 
-    //   gl.disable(GL_DEPTH_TEST);
-    //   gl.enable(GL_BLEND);
-    //   gl.blendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    //   gl.disable(WebGL2RenderingContext.DEPTH_TEST);
+    //   gl.enable(WebGL2RenderingContext.BLEND);
+    //   gl.blendFunc(WebGL2RenderingContext.SRC_ALPHA, WebGL2RenderingContext.ONE_MINUS_SRC_ALPHA);
     //   const scaleBarTexture = this['scaleBarTexture']; //const {scaleBarTexture} = this; //TODO Submit PR to make protected in the follow-up of PR #44
-    //   const {dimensions} = scaleBarTexture;
-    //   dimensions.targetLengthInPixels = Math.min(width / 4, 100);
+    //   const options = this.viewer.scaleBarOptions.value;
+    //   const { dimensions } = scaleBarTexture;
+    //   dimensions.targetLengthInPixels = Math.min(
+    //     options.maxWidthFraction * width, options.maxWidthInPixels * options.scaleFactor);
     //   dimensions.nanometersPerPixel = this['nanometersPerPixel']; //this.nanometersPerPixel; //TODO Submit PR to make protected in the follow-up of PR #44
-    //   scaleBarTexture.update();
-    //   gl.viewport(10, 10, scaleBarTexture.width, scaleBarTexture.height);
+    //   scaleBarTexture.update(options);
+    //   gl.viewport(
+    //     options.leftPixelOffset * options.scaleFactor,
+    //     options.bottomPixelOffset * options.scaleFactor, scaleBarTexture.width,
+    //     scaleBarTexture.height);
     //   const scaleBarCopyHelper = this['scaleBarCopyHelper']; //TODO Submit PR to make protected in the follow-up of PR #44
     //   /* this. */scaleBarCopyHelper.draw(scaleBarTexture.texture);
-    //   gl.disable(GL_BLEND);
+    //   gl.disable(WebGL2RenderingContext.BLEND);
     // }
 
     this.offscreenFramebuffer.unbind();
