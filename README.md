@@ -18,7 +18,9 @@ The long-term goal is to provide ready to use, compiled and easily npm installab
 	- Copy `examples/dependent-project` subfolder of neuroglancer to somewhere on your file system. This will be your project.
 	- Rename the copied folder and `my-neuroglancer-project` subfolder in `src` according to your project name
 	- Edit `name`, `description`, `version`, `license` etc. in the `package.json` of your brand new and shiny project
+	- Add `"nehuba": "^0.0.0-alpha.0"` to dependencies section of `package.json` after neuroglancer
 	- Replace `my-neuroglancer-project` to whatever you named it in the `paths` section of `tsconfig.json`
+	- Delete `package-lock.json` file
 6. From within your project folder type:
 	- `npm link neuroglancer`. This will create a symlink in your `node_modules` to the symlink created at step 3.
 	- `npm link nehuba`
@@ -26,6 +28,7 @@ The long-term goal is to provide ready to use, compiled and easily npm installab
 7. In the `third_party` directory of your project you will find a symlink to neuroglancer source. On linux it should just work. On windows you can delete it and create symlink with (from within third_party): `mklink /d neuroglancer ..\node_modules\neuroglancer\src\neuroglancer`. Use `/j` instead of `/d` if you don't have admin rights to your machine.
 8. Now create similar link to nehuba sources. (for windows `mklink /d nehuba ..\node_modules\nehuba\src\nehuba` and if you use linux you know what to do ;-)
 9. Add `"nehuba/*": ["third_party/nehuba/*"]` to the `paths` section of `tsconfig.json`
+10. Last, fix couple of broken imports in `{you project}/src/main.ts`. Replace original `my-neuroglancer-project` in import paths to whatever you named it in the `paths` section of `tsconfig.json`
 10. It's all set and ready to go. You can start the dev server by `npm run dev-server` and compile your project using `npm run build` or `npm run build-min`.
 11. You can discard the example code from neuroglancer if you wish. Just replace `main.ts` with the one from `neuroglancer/src` and delete other source files in `{you project}/src/{your project sources}`
 
@@ -78,7 +81,7 @@ There is no standalone documentation at the moment, but we are trying to documen
 In action
 ---------
 Here are some dedicated atlas viewers for [Human Brain Project](https://www.humanbrainproject.eu) made using this project:
-1. BigBrain [https://bigbrain.humanbrainproject.org](https://bigbrain.humanbrainproject.org)
-2. JuBrain [https://jubrain.humanbrainproject.org](https://jubrain.humanbrainproject.org)
-3. Waxholm [https://waxholm.humanbrainproject.org](https://waxholm.humanbrainproject.org)
-4. AMBA [https://amba.humanbrainproject.org](https://amba.humanbrainproject.org)
+1. BigBrain [https://bigbrain-dev.humanbrainproject.org](https://bigbrain-dev.humanbrainproject.org)
+2. JuBrain [https://jubrain-dev.humanbrainproject.org](https://jubrain-dev.humanbrainproject.org)
+3. Waxholm [https://waxholm-dev.humanbrainproject.org](https://waxholm-dev.humanbrainproject.org)
+4. AMBA [https://amba-dev.humanbrainproject.org](https://amba-dev.humanbrainproject.org)
