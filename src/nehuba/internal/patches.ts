@@ -5,7 +5,6 @@ import { MeshSource } from 'neuroglancer/mesh/frontend';
 import { SingleMeshUserLayer } from "neuroglancer/single_mesh_user_layer";
 import { RenderLayer } from "neuroglancer/layer";
 import { SingleMeshLayer } from "neuroglancer/single_mesh/frontend";
-import { Viewer, ViewerOptions } from "neuroglancer/viewer";
 import { SegmentationRenderLayer } from 'neuroglancer/sliceview/volume/segmentation_renderlayer';
 
 import { Config } from "nehuba/config";

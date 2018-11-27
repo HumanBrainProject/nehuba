@@ -150,7 +150,7 @@ export class NehubaViewer {
 	}
 	/** Applied to currently loaded segmentation layer. Needs to be called again when layers are re-added, for example if "Reset" button is pressed, 
 	 *  new URL copy-pasted by the user or `restoreState` is called on ngviewer programmatically)
-    *  @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria
+     *  @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria
 	 *  @throws Will throw an error if custom segment color support is not enabled in {config.globals} (not routed to {errorHandler})*/
 	batchAddAndUpdateSegmentColors(colorMap: Map<number, {red:number, green: number, blue: number}>, layer?: {name?: string, url?:string}) {
 		this.getSingleSegmentationColors(layer).batchUpdate(colorMap);

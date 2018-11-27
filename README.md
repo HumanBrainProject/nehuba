@@ -20,7 +20,6 @@ The long-term goal is to provide ready to use, compiled and easily npm installab
 	- Edit `name`, `description`, `version`, `license` etc. in the `package.json` of your brand new and shiny project
 	- Add `"nehuba": "^0.0.0-alpha.0"` to dependencies section of `package.json` after neuroglancer
 	- Replace `my-neuroglancer-project` to whatever you named it in the `paths` section of `tsconfig.json`
-	- Delete `package-lock.json` file
 6. From within your project folder type:
 	- `npm link neuroglancer`. This will create a symlink in your `node_modules` to the symlink created at step 3.
 	- `npm link nehuba`
