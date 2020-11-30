@@ -197,7 +197,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     }
 
     const waitForMesh =  this.config.layout!.useNehubaPerspective!.waitForMesh;
-    if (!waitForMesh || renderContext.extra.meshRendered) {
+    if (!waitForMesh || hasTransparent || renderContext.extra.meshRendered) {
       this.drawSliceViews(renderContext);
     }
 

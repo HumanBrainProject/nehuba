@@ -23,6 +23,7 @@ export class NehubaMeshShaderManager extends MeshShaderManager {
 		builder.addUniform('highp mat4', 'uNavState');
 		builder.addUniform('highp vec4', 'uOctant');
 		builder.addUniform('highp vec4', 'uBackFaceColor');
+		builder.addVarying('highp vec4', 'vBackFaceColor')
 		builder.setVertexMain(`
 vec4 position = uModelMatrix * vec4(aVertexPosition, 1.0);
 vNavPos = uNavState * position * uOctant;
@@ -30,13 +31,18 @@ gl_Position = uProjection * position;
 vec3 normal = (uModelMatrix * vec4(aVertexNormal, 0.0)).xyz;
 float lightingFactor = abs(dot(normal, uLightDirection.xyz)) + uLightDirection.w;
 vColor = vec4(lightingFactor * uColor.rgb, uColor.a);
-		`);    		
+if (uColor.a < 1.0) {
+	vBackFaceColor = vec4(vColor.rgb, 0.0);
+} else {
+	vBackFaceColor = uBackFaceColor;
+}
+		`); //vBackFaceColor = vec4(lightingFactor * uBackFaceColor.rgb, uColor.a);
 		builder.setFragmentMain(`
 if (vNavPos.x > 0.0 && vNavPos.y > 0.0 && vNavPos.z > 0.0) {
   discard;
 } else {
   if (gl_FrontFacing) emit(vColor, uPickID);
-  else emit(uBackFaceColor, uPickID);
+  else emit(vBackFaceColor, uPickID);
 }
 		`);
 	}
