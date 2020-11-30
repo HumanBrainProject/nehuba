@@ -48,7 +48,7 @@ vec4 sampledColor = texture(uSampler, vTexCoord);
 if (sampledColor.a == 0.0) {
   sampledColor = uBackgroundColor;
 }
-emit(sampledColor * uColorFactor, vec4(0,0,0,0));
+emit(sampledColor * uColorFactor, 0u);
 `;
 let nehubaFragment = `
 vec4 sampledColor = texture(uSampler, vTexCoord);
@@ -56,7 +56,7 @@ if (sampledColor.a == 0.0) {
   sampledColor = uBackgroundColor;
 }
 if (sampledColor.r ${mode} uDiscardColor.r && sampledColor.g ${mode} uDiscardColor.g && sampledColor.b ${mode} uDiscardColor.b) discard;
-else emit(sampledColor * uColorFactor, vec4(0,0,0,0));
+else emit(sampledColor * uColorFactor, 0u);
 `;
     builder.setFragmentMain(mode === 'none' ? originalFragment : nehubaFragment);
     builder.addAttribute('vec4', 'aVertexPosition');
@@ -121,7 +121,7 @@ export class TransparentPlaneRenderHelper extends RefCounted {
     builder.addUniform('vec4', 'uColor');
     builder.require(emitter);
     builder.setFragmentMain(`
-emit(uColor, vec4(0.0));
+emit(uColor, 0u);
 `);
     builder.addAttribute('vec4', 'aVertexPosition');
     builder.setVertexMain(`

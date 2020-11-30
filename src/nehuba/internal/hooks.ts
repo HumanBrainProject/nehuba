@@ -115,6 +115,7 @@ export function disableSegmentSelectionForLayer(layer: SegmentationUserLayer) {
 	layer.displayState.segmentSelectionState.set(null);
 	layer.displayState.segmentSelectionState.set = function () {}
 }
+//FIXME Seems to be working only for 3d, does not work for cross-sections, why?
 export function disableSegmentHighlightingForLayer(layer: SegmentationUserLayer) {
 	layer.displayState.segmentSelectionState.isSelected = function() {return false;}
 }

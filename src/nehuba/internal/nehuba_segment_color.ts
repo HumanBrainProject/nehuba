@@ -1,4 +1,3 @@
-import {HashFunction} from 'neuroglancer/gpu_hash/hash_function';
 import {NullarySignal} from 'neuroglancer/util/signal';
 import {Uint64} from 'neuroglancer/util/uint64';
 import {GL} from 'neuroglancer/webgl/context';
@@ -21,7 +20,11 @@ export class NehubaSegmentColorShaderManager extends SegmentColorShaderManager {
 vec3 ${originalPrefix}(uint64_t x) {
   uint64_t mappedValue;
   if (${this.hashMapShaderManager.getFunctionName}(x, mappedValue)) {
-    return mappedValue.low.rgb;
+    uint packed = mappedValue.value[0];
+    float red = float(packed % 256u) / 255.0;
+    float green = float((packed >> 8) % 256u) / 255.0;
+    float blue = float(packed >> 16) / 255.0;
+    return vec3(red, green, blue);
   }
   return ${this.prefix}(x);
 }
@@ -42,8 +45,8 @@ export class NehubaSegmentColorHash extends SegmentColorHash {
 	readonly gpuColorMap = new HashMapUint64();
 	readonly colorMap = new Map<number, {red:number, green: number, blue: number, gpu: number}>();
 	
-	private constructor(hashFunctions: HashFunction[], changed: NullarySignal) {
-		super(hashFunctions);
+	private constructor(hashSeed: number, changed: NullarySignal) {
+		super(hashSeed);
 		this.changed.dispose();
 		this.changed = changed;
 	}
@@ -51,7 +54,7 @@ export class NehubaSegmentColorHash extends SegmentColorHash {
 	// Since some listeners are already registered for changes inderectly in `SegmentationRenderLayer` constructor to old SegmentColorHash, 
 	// We need to steal the signal!!!
 	static from(original: SegmentColorHash) {
-		const res = new NehubaSegmentColorHash(original.hashFunctions, original.changed);
+		const res = new NehubaSegmentColorHash(original.hashSeed, original.changed);
 		original.changed = new NullarySignal();
 		return res;
 	}
@@ -122,6 +125,6 @@ export class NehubaSegmentColorHash extends SegmentColorHash {
 	}
 
 	toString() {
-		return `new NehubaSegmentColorHash([${this.hashFunctions}])`; //TODO Add custom colors?
+		return `new NehubaSegmentColorHash(${this.hashSeed})`; //TODO Add custom colors?
 	}  
 }
