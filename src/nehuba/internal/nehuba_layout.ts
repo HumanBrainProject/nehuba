@@ -45,7 +45,7 @@ function getCommonSliceViewerState(viewer: ViewerUIState) {
   };
 }
 
-const sliceQuat = Symbol('SliceQuat');
+export const sliceQuat = Symbol('SliceQuat');
 /**
  * This function started as a copy of makeSliceView from https://github.com/google/neuroglancer/blob/9c78cd512a722f3fe9ed097155b6f64f48b8d1c9/src/neuroglancer/viewer_layouts.ts
  * Copied on 19.07.2017 (neuroglancer master commit 9c78cd512a722f3fe9ed097155b6f64f48b8d1c9) and renamed.

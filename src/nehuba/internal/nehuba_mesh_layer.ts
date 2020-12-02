@@ -26,7 +26,11 @@ export class NehubaMeshShaderManager extends MeshShaderManager {
 		builder.addVarying('highp vec4', 'vBackFaceColor')
 		builder.setVertexMain(`
 vec4 position = uModelMatrix * vec4(aVertexPosition, 1.0);
-vNavPos = uNavState * position * uOctant;
+if (uOctant.w > 0.0) {
+	vNavPos = uNavState * position * uOctant;
+} else {
+	vNavPos = vec4(-1.0);
+}
 gl_Position = uProjection * position;
 vec3 normal = (uModelMatrix * vec4(aVertexNormal, 0.0)).xyz;
 float lightingFactor = abs(dot(normal, uLightDirection.xyz)) + uLightDirection.w;
@@ -38,7 +42,7 @@ if (uColor.a < 1.0) {
 }
 		`); //vBackFaceColor = vec4(lightingFactor * uBackFaceColor.rgb, uColor.a);
 		builder.setFragmentMain(`
-if (vNavPos.x > 0.0 && vNavPos.y > 0.0 && vNavPos.z > 0.0) {
+if (vNavPos.x >= 0.0 && vNavPos.y >= 0.0 && vNavPos.z >= 0.0) {
   discard;
 } else {
   if (gl_FrontFacing) emit(vColor, uPickID);
@@ -200,7 +204,7 @@ export function getValuesForClipping(extra: ExtraRenderContext): ValuesForClippi
         octant[0] = octant[0] < (pos[0]/100) ? -1.0 : 1.0;
         octant[1] = octant[1] < (pos[1]/100) ? -1.0 : 1.0;
         octant[2] = octant[2] < (pos[2]/100) ? -1.0 : 1.0;
-      //   octant[3] = octant[3] < 0.0 ? -1.0 : 1.0;
+        octant[3] = 1.0;//octant[3] < 0.0 ? -1.0 : 1.0;
       }
     }
     return {navState, octant, backFaceColor: vec4.fromValues(backFaceColor[0], backFaceColor[1], backFaceColor[2], 1.0)};

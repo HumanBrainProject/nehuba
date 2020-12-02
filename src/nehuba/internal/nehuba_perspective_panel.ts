@@ -10,7 +10,8 @@ import { quat } from 'neuroglancer/util/geom';
 import { NavigationState, Pose } from 'neuroglancer/navigation_state';
 
 import { NehubaSliceViewRenderHelper, TransparentPlaneRenderHelper } from "nehuba/internal/nehuba_renderers";
-import { Config } from "nehuba/config";
+import { Config, SliceViewsConfig } from "nehuba/config";
+import { sliceQuat } from "nehuba/internal/nehuba_layout";
 import { WatchableVisibilityPriority } from 'neuroglancer/visibility_priority/frontend';
 import { ScaleBarWidget } from 'nehuba/internal/rescued/old_scale_bar';
 import { ElementVisibilityFromTrackableBoolean } from 'neuroglancer/trackable_boolean';
@@ -354,7 +355,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     let {lightDirection, ambientLighting, directionalLighting, dataToDevice} = renderContext;
 
     const showSliceViews = this.viewer.showSliceViews.value;
-    if (!conf.hideImages) {
+    if (!conf.hideAllSlices) {
       const removeBgConfig = conf.removePerspectiveSlicesBackground;
       const render = removeBgConfig ? nehubaSliceViewRenderHelper : sliceViewRenderHelper;
       for (const [sliceView, unconditional] of this.sliceViews) {
@@ -364,6 +365,18 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
         if (sliceView.width === 0 || sliceView.height === 0 || !sliceView.hasValidViewport) {
             continue;
         }
+        if (conf.hideSlices) {
+          const views = this.config.layout!.views as SliceViewsConfig;
+          const q: quat = (<any>sliceView)[sliceQuat];
+          let sliceId: 'slice1' | 'slice2' | 'slice3' | null = null;
+          switch(q) {
+            case(views.slice1): { sliceId = 'slice1'; break }
+            case(views.slice2): { sliceId = 'slice2'; break }
+            case(views.slice3): { sliceId = 'slice3'; break }
+          };
+          if (sliceId && conf.hideSlices.indexOf(sliceId) > -1) continue; //TODO use hideSlices.includes(sliceId)  
+        }
+
         let scalar = Math.abs(vec3.dot(lightDirection, sliceView.viewportAxes[2]));
         let factor = ambientLighting + scalar * directionalLighting;
         let mat = tempMat4;

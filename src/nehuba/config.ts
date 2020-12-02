@@ -4,6 +4,13 @@ import { vec3, vec4, quat } from 'nehuba/exports';
 
 export type removeBackgroundMode = 'none' | '>' | '>=' | '==' | '<='| '<';
 
+export interface SliceViewsConfig {
+	slice1: quat;
+	slice2: quat;
+	slice3: quat;
+	// mainSlice?: 1 | 2 | 3 // experimental alpha feature in "mainslice" branch
+}
+
 //TODO Check for required global settings when creating viewers?
 /** Plain old json to be easily stored elsewhere. Everything is optional. The idea is that with no config or an empty `{}` object, 
  *  Nehuba viewer should behave just like default vanilla neuroglancer. (At least it is a design goal and any deviation in 
@@ -105,15 +112,10 @@ export interface Config {
 		/** Configure planar slice views.
 		 *  Currently, if not set, it defaults to 'hbp-neuro' for convenience. This will be changed in the future for consistency to default to Neuroglancer default set of views.
 		 *  'hbp-neuro' is a shortcut to the set of predefined views used in HBP human brain atlas following neurological convention.
-		 *  When layout is created and this setting was empty or set to the string shortcut like 'hbp-neuro', it will be substituted by Nehuba to the set of actual quaternions used to create views.
+		 *  When layout is created and this setting was empty or set to the string shortcut like 'hbp-neuro', it will be substituted by Nehuba with {@link SliceViewsConfig} object containing set of actual quaternions used to create views.
 		 *  So that you can access and change them easily afterwards, for example to mirror the views across the X axis in order to change between neurological and radiological conventions.
 		 *  Therefore toggleable, but needs relayout for changes to take effect. */
-		views?: 'hbp-neuro' | {
-			slice1: quat;
-			slice2: quat;
-			slice3: quat;
-			// mainSlice?: 1 | 2 | 3 // experimental alpha feature in "mainslice" branch
-		}		
+		views?: 'hbp-neuro' | SliceViewsConfig
 		/** Hide neuroglancer 'Slices' checkbox in perspective view. Toggleable, but needs relayout to be changed. */
 		hideSliceViewsCheckbox?: boolean
 		/** Use NehubaPerspective instead of neuroglancer Perspective. Provides the ability to remove the front (or any other) octant of the mesh
@@ -175,8 +177,9 @@ export interface Config {
 			}
 			/** Configure mesh. Currently only provides a possibility to remove front octant to get a clipped mesh to achieve a "3d view". Toggleable (needs redraw).*/
 			mesh?: { //TODO Maybe rename it to clippedMesh or something and add "boolean |" shortcut
-				/** Remove one particular octant. The octant to be removed is represented as vec4, where xyz could be either +1 or -1. The eight
-				 *  combinations of + and - encode eight available octants. For example the "front" octant in the default HBP view states is [-1.0, 1.0, 1.0]. 
+				/** Remove one particular octant. The octant to be removed is represented as vec4, where xyz could be either +1 or -1 and w is expected to be 1. The eight
+				 *  combinations of +1 and -1 encode eight available octants. For example the "front" octant in the default HBP view state is [-1.0, 1.0, 1.0].
+				 *  If one of xyz is 0, then the respective quadrant is removed. Or the whole hemisphere if two out of three xyz components are zeroes.
 				 *  If 'flipRemovedOctant' is on, then this parameter is ignored and removed octant is flipped to be always the front one.
 				 *  Otherwise no octant is removed if this parameter is absent. Toggleable (needs redraw).*/
 				removeOctant?: vec4
@@ -210,8 +213,10 @@ export interface Config {
 				/** Default is vec4.fromValues(1.0, 0.0, 0.0, 0.2) if not specified. Toggleable (needs redraw). */
 				color?: vec4
 			}
-			/** Don't draw slices in the perspective view. This setting make no sense and should be removed. Provided only for the sake of completeness. Toggleable (needs redraw).*/
-			hideImages?: boolean //TODO move to dev or remove
+			/** Don't draw slices in the perspective view. Toggleable (needs redraw).*/
+			hideAllSlices?: boolean //TODO This setting make no sense and should be removed. Provided only for the sake of completeness. Move to dev or remove
+			/** Don't draw specified slice views in the prespective view. Toggleable (needs redraw).*/
+			hideSlices?: Array<'slice1' | 'slice2' | 'slice3'>
 			/** For whatever reason, it takes quite some time in neuroglancer for the mesh to show up. This should be investigated and fixed,
 			 *  but until then here is an option to block the display of perspective view until the mesh is ready. Otherwise the user will see just
 			 *  perpendicular slices, which looks not nice and should be hidden from the user. Toggleable (needs redraw).*/
