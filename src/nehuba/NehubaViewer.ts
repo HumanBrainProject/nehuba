@@ -197,6 +197,12 @@ export class NehubaViewer {
 	set crossSectionBackground(color: vec3) {
 		this.ngviewer.crossSectionBackgroundColor.value = color;
 	}
+	get perspectiveViewBackground() {
+		return this.ngviewer.perspectiveViewBackgroundColor.value;
+	}
+	set perspectiveViewBackground(color: vec3) {
+		this.ngviewer.perspectiveViewBackgroundColor.value = color;
+	}
 	restoreState(state: any) {
 		NehubaViewer.restoreViewerState(this.ngviewer, state, this.config);
 	}
@@ -219,7 +225,7 @@ export class NehubaViewer {
 		let viewer = setupDefaultViewer();
 
 		if (config.hideNeuroglancerUI) viewer.uiConfiguration.showUIControls.value = false;
-		this.setCrossSectionBackgroundFromConfig(viewer, config);
+		this.setBackgroundsFromConfig(viewer, config);
 
 		configureInstance(viewer, config);
 
@@ -230,9 +236,11 @@ export class NehubaViewer {
 		return new NehubaViewer(viewer, config, errorHandler);
 	}
 
-	private static setCrossSectionBackgroundFromConfig(viewer: Viewer, config: Config) {
-		const bg = (config.dataset && config.dataset.imageBackground) || config.crossSectionBackground;
-		if (bg) viewer.crossSectionBackgroundColor.value = bg;
+	private static setBackgroundsFromConfig(viewer: Viewer, config: Config) {
+		const crossSections = (config.dataset && config.dataset.imageBackground) || config.crossSectionBackground;
+		if (crossSections) viewer.crossSectionBackgroundColor.value = crossSections;
+		const perspective = (config.dataset && config.dataset.imageBackground) || config.perspectiveViewBackground;
+		if (perspective) viewer.perspectiveViewBackgroundColor.value = perspective;
 	}
 
 	get config() { return this._config; }
@@ -376,7 +384,7 @@ export class NehubaViewer {
 	private static restoreViewerState(viewer: Viewer, state: any, config: Config) {
 		viewer.state.reset(); //Needed to reset from split view, reset obliqe slicing, reset slices checkbox etc...
 		viewer.state.restoreState(state);
-		if (!state.crossSectionBackgroundColor) NehubaViewer.setCrossSectionBackgroundFromConfig(viewer, config);
+		if (!state.crossSectionBackgroundColor) NehubaViewer.setBackgroundsFromConfig(viewer, config);
 	}
 
 	private checkRGB(color: {red:number, green: number, blue: number}) {

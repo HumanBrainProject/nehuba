@@ -132,11 +132,8 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
      this.offscreenFramebuffer.bind(width, height);
 
     gl.disable(gl.SCISSOR_TEST);
-    const conf = this.config.layout!.useNehubaPerspective!;
-    const bg = conf.perspectiveBackground
-      || conf.perspectiveSlicesBackground 
-      || this.viewer.crossSectionBackgroundColor.value;
-    this.gl.clearColor(bg[0], bg[1], bg[2], 1.0);
+    const backgroundColor = this.viewer.perspectiveViewBackgroundColor.value;
+    this.gl.clearColor(backgroundColor[0], backgroundColor[1], backgroundColor[2], 0.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     gl.enable(gl.DEPTH_TEST);

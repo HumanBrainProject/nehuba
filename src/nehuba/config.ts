@@ -85,8 +85,11 @@ export interface Config {
 	 *  and showNeuroglancerUI() methods instead.*/
 	hideNeuroglancerUI?: boolean
 	/** The background color is displayed in areas where there is no data available. Same as setting `crossSectionBackground` property of the viewer after creation.
-	 *  Overridden by 'dataset.imageBackground' if present (only at creation). Not toggleable, change `crossSectionBackground` property instead. */
+	 *  Overridden by 'dataset.imageBackground' if present (only at creation). Not toggleable, change `crossSectionBackground` property of the viewer instead. */
 	crossSectionBackground?: vec3
+	/** The background color of perspective view. Same as setting `perspectiveViewBackground` property of the viewer after creation.
+	 *  Overridden by 'dataset.imageBackground' if present (only at creation). Not toggleable, change `perspectiveViewBackground` property of the viewer instead. */
+	perspectiveViewBackground?: vec3
 	/** Debouncing of onResize methods introduced by 
 	 *  	google/neuroglancer@05d6398d0995318dcce6151e7a285c9b606720b6 and
 	 *  	google/neuroglancer@c59c3d6f561fa2cf5fb9eda7d77d9f458cae3637
@@ -98,7 +101,7 @@ export interface Config {
 	 *  Eventually might be stored in Knowledge Graph next to the actual data.	*/
 	dataset?: {
 		/** Background of images. For example in most cases it would be black for MRI images (background means absence of signal hence minimum intensity)
-		 *  or white for scanned bigbrain images (background is maximum intensity of light). Will override `crossSectionBackground` (see above) property of the viewer after creation.
+		 *  or white for scanned bigbrain images (background is maximum intensity of light). Will override `crossSectionBackground` and 'perspectiveViewBackground' property of the viewer after creation.
 		 *  It is important to have right background color in removePerspectiveSlicesBackground procedure, which is quite vital for a so-called "3d view".
 		 *  Not toggleable, change `crossSectionBackground` property of the viewer if needed.*/
 		imageBackground: vec3 //TODO make optional
@@ -120,7 +123,6 @@ export interface Config {
 		hideSliceViewsCheckbox?: boolean
 		/** Use NehubaPerspective instead of neuroglancer Perspective. Provides the ability to remove the front (or any other) octant of the mesh
 		 *  (if 'globals.useNehubaMeshLayer' or 'globals.useNehubaSingleMeshLayer' is on) and other customisations.
-		 *  By default perspective background is set to match the background of cross sections.
 		 *  By default shift-drag is disabled,    that should be changed because the default behavior should be the same as upstream NG //TODO
 		 *  By default restricts user navigation, that should be changed because the default behavior should be the same as upstream NG //TODO 
 		 *  Toggleable with exception, but needs relayout to be changed. Exception: Currently shift-drag is remapped (to be disabled) if `useNehubaPerspective`
@@ -149,9 +151,6 @@ export interface Config {
 				 *  since we don't want to compile a new shader at each draw() request...) */
 				mode?: removeBackgroundMode
 			}
-			/** Custom perspective background. 
-			 *  If not set, then 'perspectiveSlicesBackground' (or if not set 'crossSectionBackground') will be used instead. Toggleable (needs redraw). */
-			perspectiveBackground?: vec3
 			/** Fix zoom level in perspective view slices(independent zooming). Necessary to achieve a "3d view" with clipped mesh. Toggleable, but needs relayout to be changed. */ //FIXME toggling and relayout does not work anymore
 			fixedZoomPerspectiveSlices?: {
 				// Originally in neuroglancer slices in perspective view are just the same slices as in planar views. So their viewport 
