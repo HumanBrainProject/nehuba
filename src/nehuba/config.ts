@@ -129,9 +129,9 @@ export interface Config {
 		 *  is ON when viewer is created. So even though it is toggleable, the shift-drag remapping remains, making shift-drag disabled for original
 		 *  PerspectivePanel as well. And vice versa, if `useNehubaPerspective` toggled after the viewer was created, shift-drag is not disabled */ //TODO make dynamic remapping or better yet finally fix shift-drag
 		useNehubaPerspective?: {
-			/** There is something wrong with shift-drag of perspective view if 'centerToOrigin' is true. So it is disabled by default. TODO Re-enable and fix.
-			 *  Better leave it off. It is still here for developer use. Will be fixed and removed. */
-			enableShiftDrag?: boolean
+			/** Translating perspective view by dragging is not supported when 'centerToOrigin' is true. So it is disabled by default.
+			 *  Can be enabled here if 'centerToOrigin' is not used and for development. Will be removed in the future. Not toggleable */
+			enablePerspectiveDrag?: boolean //TODO Re-enable and fix.
 			/** Do not enforce restriction of user navigation. See doc of 'restrictUserNavigation' for details.
 			 *  Better leave it off, otherwise clipped mesh will look broken. It is still here for developer use */
 			doNotRestrictUserNavigation?: boolean

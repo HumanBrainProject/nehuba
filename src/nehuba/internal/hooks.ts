@@ -14,11 +14,15 @@ export function configureInstance(viewer: Viewer, config: Config) {
 	if (config.globals && config.globals.useCustomSegmentColors) useNehubaCustomSegmentColors(viewer);
 	// useNehubaIndependentSegmentMeshes(viewer); //Handled in NehubaViewer
 
-	//Remap actions to nehuba
 	if (config.globals && config.globals.useNehubaLayout) {
-		viewer.inputEventBindings.sliceView.set('at:shift+mousedown0', {action: 'nehuba-rotate-via-mouse-drag', stopPropagation: true}) //Actual action listener is registered by NehubaLayout
+		//Remap action to nehuba
+		viewer.inputEventBindings.sliceView.set('at:shift+mousedown0', {action: 'nehuba-rotate-via-mouse-drag', stopPropagation: true}); //Actual action listener is registered by NehubaLayout
 		if (config.layout && config.layout.useNehubaPerspective) {
-			viewer.inputEventBindings.perspectiveView.set('at:shift+mousedown0', {action: 'nehuba-translate-via-mouse-drag', stopPropagation: true}) //Actual action listener is registered by NehubaPerspectivePanel
+			if (!config.layout.useNehubaPerspective.enablePerspectiveDrag) {
+				//In principal can make toggleable, keep the previous action and delegate to it conditionally
+				viewer.inputEventBindings.perspectiveView.set('at:shift+mousedown0', {action: 'ignore', stopPropagation: true});
+				viewer.inputEventBindings.perspectiveView.set('at:touchtranslate2', {action: 'ignore', stopPropagation: true});
+			}
 		}
 	}
 

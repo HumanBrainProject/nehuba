@@ -242,9 +242,9 @@ function disableFixedPointInRotation(slice: SliceViewPanel, config: Config) {
       startRelativeMouseDrag(e.detail, (_event, deltaX, deltaY) => {
         let {viewportAxes} = /* this. */sliceView;
         /* this. */viewer.navigationState.pose.rotateAbsolute(
-            viewportAxes[1], deltaX / 4.0 * Math.PI / 180.0, initialPosition);
+            viewportAxes[1], -deltaX / 4.0 * Math.PI / 180.0, initialPosition);
         /* this. */viewer.navigationState.pose.rotateAbsolute(
-            viewportAxes[0], deltaY / 4.0 * Math.PI / 180.0, initialPosition);
+            viewportAxes[0], -deltaY / 4.0 * Math.PI / 180.0, initialPosition);
       });
     }
   });  

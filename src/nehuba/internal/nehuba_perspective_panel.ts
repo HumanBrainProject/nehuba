@@ -53,30 +53,13 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     this.registerDisposer(TransparentPlaneRenderHelper.get(this.gl, perspectivePanelEmit));
   scaleBarWidget = this.registerDisposer(new ScaleBarWidget());
 
-	constructor(context: DisplayContext, element: HTMLElement, viewer: PerspectiveViewerState, private config: Config) {
-		super(context, element, viewer);
+  constructor(context: DisplayContext, element: HTMLElement, viewer: PerspectiveViewerState, private config: Config) {
+    super(context, element, viewer);
 
-    registerActionListener(element, 'nehuba-translate-via-mouse-drag', (e: ActionEvent<MouseEvent>) => {
-      startRelativeMouseDrag(e.detail, (_event, deltaX, deltaY) => {
-        if (this.config.layout!.useNehubaPerspective!.enableShiftDrag) { // <-- Added
-          const temp = tempVec3;
-          const {projectionMat} = this;
-          const {width, height} = this;
-          const {position} = this.viewer.navigationState;
-          const pos = position.spatialCoordinates;
-          vec3.transformMat4(temp, pos, projectionMat);
-          temp[0] = 2 * deltaX / width;
-          temp[1] = -2 * deltaY / height;
-          vec3.transformMat4(pos, temp, this.inverseProjectionMat);
-          position.changed.dispatch();
-        }
-      });
-    });
-
-		const removeBgConfig = config.layout!.useNehubaPerspective!.removePerspectiveSlicesBackground;
-		const mode = (removeBgConfig && removeBgConfig.mode) || 'none';
+    const removeBgConfig = config.layout!.useNehubaPerspective!.removePerspectiveSlicesBackground;
+    const mode = (removeBgConfig && removeBgConfig.mode) || 'none';
     this.nehubaSliceViewRenderHelper = this.registerDisposer(NehubaSliceViewRenderHelper.get(this.gl, perspectivePanelEmit/*sliceViewPanelEmitColor*/, mode));
-    
+
     this.registerDisposer(this.visibility.changed.add(() => Array.from(this.sliceViews.keys()).forEach(slice => slice.visibility.value = this.visibility.value)));
 
     const scaleBar = this.scaleBarWidget.element;
@@ -84,7 +67,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     const orthographicProjection = viewer.orthographicProjection;
     this.registerDisposer(new ElementVisibilityFromTrackableBoolean(makeDerivedWatchableValue((a, b) => a && b, showScaleBar, orthographicProjection), scaleBar));
     element.appendChild(scaleBar);
-	}	
+  }	
 
 	updateProjectionMatrix() {
 		super.updateProjectionMatrix();
