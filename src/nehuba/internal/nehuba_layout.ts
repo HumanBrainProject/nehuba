@@ -104,7 +104,7 @@ export class NehubaLayout extends RefCounted {
 
     const configureSliceViewPanel = (slice: SliceViewPanel) => {
       //TODO It is time for NehubaSliceViewPanel
-      dispatchRenderEvents(dedebounce(disableFixedPointInZoom(disableFixedPointInRotation(slice, config), config), config));
+      dispatchRenderEvents(disableFixedPointInZoom(disableFixedPointInRotation(slice, config), config));
       return slice;
     }
 
@@ -210,18 +210,6 @@ export class NehubaLayout extends RefCounted {
     removeChildren(this.rootElement);
     super.disposed();
   }
-}
-
-//TODO raise an issue upstream
-/** Upstream neuroglancer added debouncing of SliceViewPanel.onResize (commit c59c3d6f561fa2cf5fb9eda7d77d9f458cae3637)
- *  which causes flicker when "Reset" is pressed (state changed programmatically twice at the same cycle). So we need to de-debounce */
-function dedebounce(slice: SliceViewPanel, config: Config) {
-  const originalOnResize = slice.onResize;
-  slice.onResize = function() {
-    if (config.dedebounceUpdates) this.sliceView.setViewportSize(this.element.clientWidth, this.element.clientHeight);
-    else originalOnResize.call(this);
-  }
-  return slice;
 }
 
 // ****** !!! Needs attention !!! ******  Even so the change is minimal - the code is forked/copy-pasted from NG and needs to be updated if changed upstream.
