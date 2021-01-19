@@ -199,7 +199,6 @@ export class NehubaLayout extends RefCounted {
       ]))
     ];
     L.box('row', mainDisplayContents)(rootElement);
-    display.onResize();
 
     const detail: LayoutEventDetail = { perspective: perspectivePanel && perspectivePanel.element}
     const event = new CustomEvent(layoutEventType, {detail});
@@ -303,7 +302,7 @@ function useOldScaleBar(slice: SliceViewPanel, showScaleBar: TrackableBoolean) {
 
 export const sliceRenderEventType = 'sliceRenderEvent';
 /** Contains a reference to corresponding slice view. Don't store, allow gc */
-export interface SliceRenderEventDetail {
+export interface SliceRenderEventDetail { //TODO There is native statistics with UI available in neuroglancer now, try to use that for missing chunks
   /** Missing chunks from layers of 'image' type.
    *  Value of -1 indicates that there are no layers yet */
   missingImageChunks: number,

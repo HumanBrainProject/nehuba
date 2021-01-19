@@ -1,7 +1,8 @@
 import {ChunkState} from 'neuroglancer/chunk_manager/base';
 import {ChunkManager} from 'neuroglancer/chunk_manager/frontend';
 import {PerspectiveViewRenderContext} from 'neuroglancer/perspective_view/render_layer';
-import {forEachSegmentToDraw, getObjectColor, SegmentationDisplayState3D} from 'neuroglancer/segmentation_display_state/frontend';
+import {forEachVisibleSegment, getObjectKey} from 'neuroglancer/segmentation_display_state/base';
+import {getObjectColor, SegmentationDisplayState3D} from 'neuroglancer/segmentation_display_state/frontend';
 import {mat4, vec3, vec4, quat} from 'neuroglancer/util/geom';
 import {getObjectId} from 'neuroglancer/util/object_id';
 import {GL} from 'neuroglancer/webgl/context';
@@ -19,6 +20,7 @@ import { ExtraRenderContext } from "nehuba/internal/nehuba_perspective_panel";
 export class NehubaMeshShaderManager extends MeshShaderManager {
 	defineShader(builder: ShaderBuilder) {
 		super.defineShader(builder);
+		builder.addUniform('highp mat4', 'uModelMatrix');
 		builder.addVarying('highp vec4', 'vNavPos');
 		builder.addUniform('highp mat4', 'uNavState');
 		builder.addUniform('highp vec4', 'uOctant');
@@ -31,8 +33,8 @@ if (uOctant.w > 0.0) {
 } else {
 	vNavPos = vec4(-1.0);
 }
-gl_Position = uProjection * position;
-vec3 normal = (uModelMatrix * vec4(aVertexNormal, 0.0)).xyz;
+gl_Position = uModelViewProjection * vec4(aVertexPosition, 1.0);
+vec3 normal = uNormalMatrix * aVertexNormal;
 float lightingFactor = abs(dot(normal, uLightDirection.xyz)) + uLightDirection.w;
 vColor = vec4(lightingFactor * uColor.rgb, uColor.a);
 if (uColor.a < 1.0) {
@@ -50,6 +52,12 @@ if (vNavPos.x >= 0.0 && vNavPos.y >= 0.0 && vNavPos.z >= 0.0) {
 }
 		`);
 	}
+	/* In commit aec53cf0bba24567ae60454725f1e97023e7f689 of Neuroglancer `uModelMatrix` was removed, so we need to re-add it here */
+	beginModel(gl: GL, shader: ShaderProgram, renderContext: PerspectiveViewRenderContext, modelMat: mat4) {
+		super.beginModel(gl, shader, renderContext, modelMat);
+		gl.uniformMatrix4fv(shader.uniform('uModelMatrix'), false, modelMat);
+	}
+
 	setValuesForClipping(gl: GL, shader: ShaderProgram, values: ValuesForClipping) {
 		this.setNavState(gl, shader, values.navState);
 		this.setOctant(gl, shader, values.octant);
@@ -94,6 +102,7 @@ export class NehubaMeshLayer extends MeshLayer {
 		}
 		let shader = this.getShader(renderContext.emitter);
 		shader.bind();
+		const objectToDataMatrix = this.displayState.objectToDataTransform.transform;
 		meshShaderManager.beginLayer(gl, shader, renderContext);
 
 		if (!renderContext.extra) console.error('Bad configuration. Nehuba mesh layer is used by neuroglancer code.');
@@ -102,12 +111,15 @@ export class NehubaMeshLayer extends MeshLayer {
 		const conf = (renderContext.extra && renderContext.extra.config.layout!.useNehubaPerspective!.mesh); //Is it undefined?
 		const surfaceParcellation = conf && conf.surfaceParcellation;
 
-		let objectChunks = this.source.fragmentSource.objectChunks;
+		meshShaderManager.beginModel(gl, shader, renderContext, objectToDataMatrix);
 
 		let {pickIDs} = renderContext;
+		const manifestChunks = this.source.chunks;
 
-		const objectToDataMatrix = this.displayState.objectToDataTransform.transform;
-
+		let totalChunks = 0, presentChunks = 0;
+		const {renderScaleHistogram} = this.displayState;
+		const fragmentChunks = this.source.fragmentSource.chunks;
+  
 		const {visibleSegments} = displayState
 		let visibleMeshes: Uint64Set;
 		if (visibleSegments instanceof VisibleSegmentsWrapper) {
@@ -124,9 +136,10 @@ export class NehubaMeshLayer extends MeshLayer {
 			}
 		});		
 
-		let loadedFragments = 0; //Array.from(objectChunks.values()).reduce((acc, current) => acc + current.size, 0);
-		forEachSegmentToDraw(displayStateProxy, objectChunks, (rootObjectId, objectId, fragments) => {
-			// loadedFragments += fragments.size; //Currently the same (all fragments have ChunkState.GPU_MEMORY)
+		forEachVisibleSegment(displayStateProxy, (rootObjectId, objectId) => {
+			const key = getObjectKey(objectId);
+			const manifestChunk = manifestChunks.get(key);
+			if (manifestChunk === undefined) return;
 			if (renderContext.emitColor) {
 				meshShaderManager.setColor(gl, shader, getObjectColor(displayState, rootObjectId, alpha));
 			}
@@ -136,22 +149,33 @@ export class NehubaMeshLayer extends MeshLayer {
 			if (renderContext.extra.showSliceViewsCheckboxValue && visibleSegments instanceof VisibleSegmentsWrapper && !surfaceParcellation) {
 				if (visibleSegments.has(rootObjectId))	meshShaderManager.setValuesForClipping(gl, shader, NoClipping);
 				else meshShaderManager.setValuesForClipping(gl, shader, valuesForClipping);
-			}
-			meshShaderManager.beginObject(gl, shader, objectToDataMatrix);
-			for (let fragment of fragments) {
-				if (fragment.state === ChunkState.GPU_MEMORY) {
+			}			
+			totalChunks += manifestChunk.fragmentIds.length;
+
+			for (const fragmentId of manifestChunk.fragmentIds) {
+				const fragment = fragmentChunks.get(`${key}/${fragmentId}`);
+				if (fragment !== undefined && fragment.state === ChunkState.GPU_MEMORY) {
 					meshShaderManager.drawFragment(gl, shader, fragment);
-					loadedFragments++;
+					++presentChunks;
 				}
 			}
 		});
 
+		if (renderContext.emitColor) {
+			renderScaleHistogram.begin(
+				this.chunkManager.chunkQueueManager.frameNumberCounter.frameNumber);
+			renderScaleHistogram.add(
+				Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, presentChunks,
+				totalChunks - presentChunks);
+		}
 		meshShaderManager.endLayer(gl, shader);
+
+		let objectChunks = this.source.fragmentSource.chunks;
 		renderContext.extra.meshRendered = objectChunks.size > 0;
 		if (renderContext.extra.meshesLoaded === -1) renderContext.extra.meshesLoaded = 0;
 		renderContext.extra.meshesLoaded += objectChunks.size;
 		if (renderContext.extra.meshFragmentsLoaded === -1) renderContext.extra.meshFragmentsLoaded = 0;
-		renderContext.extra.meshFragmentsLoaded += loadedFragments;
+		renderContext.extra.meshFragmentsLoaded += presentChunks;
 		const objectKeys = Array.from(objectChunks.keys())
 		renderContext.extra.lastMeshId = objectKeys[objectKeys.length - 1];
 	}

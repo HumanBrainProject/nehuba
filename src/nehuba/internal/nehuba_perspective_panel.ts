@@ -73,8 +73,8 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
 		super.updateProjectionMatrix();
 		//TODO Regression in PerspectivePanel.startDragViewport, can not shift - drag anymore. FIX or disable
 		if (this.config.layout!.useNehubaPerspective!.centerToOrigin) {
-			mat4.translate(this.projectionMat, this.projectionMat, this.navigationState.position.spatialCoordinates);
-			mat4.invert(this.inverseProjectionMat, this.projectionMat);
+			mat4.translate(this.viewProjectionMat, this.viewProjectionMat, this.navigationState.position.spatialCoordinates);
+			mat4.invert(this.viewProjectionMatInverse, this.viewProjectionMat);
 		}		
 	}
 
@@ -120,12 +120,12 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     gl.enable(gl.DEPTH_TEST);
-    let {projectionMat} = this;
+    let {viewProjectionMat} = this;
     this.updateProjectionMatrix();
 
     // FIXME; avoid temporaries
     let lightingDirection = vec3.create();
-    transformVectorByMat4(lightingDirection, kAxes[2], this.modelViewMat);
+    transformVectorByMat4(lightingDirection, kAxes[2], this.viewMatInverse);
     vec3.normalize(lightingDirection, lightingDirection);
 
     let ambient = 0.2;
@@ -134,7 +134,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     let pickIDs = this.pickIDs;
     pickIDs.clear();
     let renderContext: PerspectiveViewRenderContext & {extra: ExtraRenderContext} = {
-      dataToDevice: projectionMat,
+      dataToDevice: viewProjectionMat,
       lightDirection: lightingDirection,
       ambientLighting: ambient,
       directionalLighting: directional,

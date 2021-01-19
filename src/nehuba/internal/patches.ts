@@ -1,7 +1,8 @@
 import { LAYOUTS } from 'neuroglancer/data_panel_layout';
 import { ImageUserLayer } from "neuroglancer/image_user_layer";
 import { SegmentationUserLayer } from "neuroglancer/segmentation_user_layer";
-import { MeshSource } from 'neuroglancer/mesh/frontend';
+import { MeshSource, MultiscaleMeshSource } from 'neuroglancer/mesh/frontend';
+import { MultiscaleMeshLayer } from 'neuroglancer/mesh/frontend';
 import { SingleMeshUserLayer } from "neuroglancer/single_mesh_user_layer";
 import { RenderLayer } from "neuroglancer/layer";
 import { SingleMeshLayer } from "neuroglancer/single_mesh/frontend";
@@ -83,9 +84,14 @@ function useNehubaColorsInSegmentationRenderLayer() {
 
 //@MinimalMaintenance. Because method is so small and the change is so simple. But needs to be monitored upstream for changes.
 function useNehubaMeshInSegmentationLayer() {
-	SegmentationUserLayer.prototype.addMesh = function (this: SegmentationUserLayer, meshSource: MeshSource) {
-		// this.meshLayer = new MeshLayer(this.manager.chunkManager, meshSource, this.displayState);
-		this.meshLayer = new NehubaMeshLayer(this.manager.chunkManager, meshSource, this.displayState);
+	SegmentationUserLayer.prototype.addMesh = function (this: SegmentationUserLayer, meshSource: MeshSource|MultiscaleMeshSource) {
+		if (meshSource instanceof MeshSource) {
+			// this.meshLayer = new MeshLayer(this.manager.chunkManager, meshSource, this.displayState);
+			this.meshLayer = new NehubaMeshLayer(this.manager.chunkManager, meshSource, this.displayState);
+		} else {
+			this.meshLayer =
+				new MultiscaleMeshLayer(this.manager.chunkManager, meshSource, this.displayState);
+		}
 		this.addRenderLayer(this.meshLayer!);
 	};	
 }
