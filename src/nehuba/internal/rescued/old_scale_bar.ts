@@ -2,7 +2,7 @@ import { RefCounted } from "neuroglancer/util/disposable";
 import { ScaleBarDimensions } from "neuroglancer/widget/scale_bar";
 import { removeFromParent } from "neuroglancer/util/dom";
 
-require('./old_scale_bar.css');
+import './old_scale_bar.css';
 /** https://github.com/google/neuroglancer/commit/1e06a4768702596f366fb605e9e953f9b8e48386 
  *  changed the scalebar rendering to be done with WebGL instead of separate HTML element to avoid
  *  some kind of flickering. 

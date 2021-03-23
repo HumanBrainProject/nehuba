@@ -16,6 +16,7 @@ import { MeshShaderManager, MeshLayer, MeshSource } from "neuroglancer/mesh/fron
 import { Disposer } from "neuroglancer/util/disposable";
 
 import { ExtraRenderContext } from "nehuba/internal/nehuba_perspective_panel";
+import { VertexPositionFormat } from 'neuroglancer/mesh/base';
 
 export class NehubaMeshShaderManager extends MeshShaderManager {
 	defineShader(builder: ShaderBuilder) {
@@ -25,16 +26,29 @@ export class NehubaMeshShaderManager extends MeshShaderManager {
 		builder.addUniform('highp mat4', 'uNavState');
 		builder.addUniform('highp vec4', 'uOctant');
 		builder.addUniform('highp vec4', 'uBackFaceColor');
-		builder.addVarying('highp vec4', 'vBackFaceColor')
-		builder.setVertexMain(`
-vec4 position = uModelMatrix * vec4(aVertexPosition, 1.0);
+		builder.addVarying('highp vec4', 'vBackFaceColor');
+		let vertexMain = ``;
+		if (this.fragmentRelativeVertices) {
+		  vertexMain += `
+  highp vec3 vertexPosition = uFragmentOrigin + uFragmentShape * getVertexPosition();
+  highp vec3 normalMultiplier = 1.0 / uFragmentShape;
+  `;
+		} else {
+		  vertexMain += `
+  highp vec3 vertexPosition = getVertexPosition();
+  highp vec3 normalMultiplier = vec3(1.0, 1.0, 1.0);
+  `;
+		}		
+		vertexMain += `
+vec4 position = uModelMatrix * vec4(vertexPosition, 1.0);
 if (uOctant.w > 0.0) {
 	vNavPos = uNavState * position * uOctant;
 } else {
 	vNavPos = vec4(-1.0);
 }
-gl_Position = uModelViewProjection * vec4(aVertexPosition, 1.0);
-vec3 normal = uNormalMatrix * aVertexNormal;
+gl_Position = uModelViewProjection * vec4(vertexPosition, 1.0);
+vec3 origNormal = decodeNormalOctahedronSnorm8(aVertexNormal);
+vec3 normal = normalize(uNormalMatrix * (normalMultiplier * origNormal));
 float lightingFactor = abs(dot(normal, uLightDirection.xyz)) + uLightDirection.w;
 vColor = vec4(lightingFactor * uColor.rgb, uColor.a);
 if (uColor.a < 1.0) {
@@ -42,7 +56,8 @@ if (uColor.a < 1.0) {
 } else {
 	vBackFaceColor = uBackFaceColor;
 }
-		`); //vBackFaceColor = vec4(lightingFactor * uBackFaceColor.rgb, uColor.a);
+		`; //vBackFaceColor = vec4(lightingFactor * uBackFaceColor.rgb, uColor.a);
+		builder.setVertexMain(vertexMain);
 		builder.setFragmentMain(`
 if (vNavPos.x >= 0.0 && vNavPos.y >= 0.0 && vNavPos.z >= 0.0) {
   discard;
@@ -73,19 +88,22 @@ if (vNavPos.x >= 0.0 && vNavPos.y >= 0.0 && vNavPos.z >= 0.0) {
 		gl.uniform4fv(shader.uniform('uBackFaceColor'), color);
 	}
 	getShader(gl: GL, emitter: ShaderModule) {
-		return gl.memoize.get(`mesh/NehubaMeshShaderManager:${getObjectId(emitter)}`, () => {
-			let builder = new ShaderBuilder(gl);
-			builder.require(emitter);
-			this.defineShader(builder);
-			return builder.build();
-		});
-	}
+		return gl.memoize.get(
+			 `mesh/NehubaMeshShaderManager:${getObjectId(emitter)}/` +
+				  `${this.fragmentRelativeVertices}/${this.vertexPositionFormat}`,
+			 () => {
+				let builder = new ShaderBuilder(gl);
+				builder.require(emitter);
+				this.defineShader(builder);
+				return builder.build();
+			 });
+	 }
 }
 
 export class NehubaMeshLayer extends MeshLayer {
 	constructor(chunkManager: ChunkManager, source: MeshSource, displayState: SegmentationDisplayState3D) {
 		super(chunkManager, source, displayState);
-		this.meshShaderManager = new NehubaMeshShaderManager();
+		this.meshShaderManager = new NehubaMeshShaderManager(/*fragmentRelativeVertices=*/ false, VertexPositionFormat.float32);
 	}	
 
 	draw(renderContext: PerspectiveViewRenderContext & { extra: ExtraRenderContext }) { //What if called without extra? (by normal ng layer)
@@ -136,7 +154,7 @@ export class NehubaMeshLayer extends MeshLayer {
 			}
 		});		
 
-		forEachVisibleSegment(displayStateProxy, (rootObjectId, objectId) => {
+		forEachVisibleSegment(displayStateProxy, (objectId, rootObjectId) => {
 			const key = getObjectKey(objectId);
 			const manifestChunk = manifestChunks.get(key);
 			if (manifestChunk === undefined) return;
@@ -264,6 +282,10 @@ export class VisibleSegmentsWrapper extends SharedObject implements Uint64Set {
 	// get hashTable() { return this.wrapped.hashTable }
 	get hashTable() { return this.localHashTable }
 	get changed() { return this.wrapped.changed }
+
+	get value() {
+		return this;
+	}
 
 	add_(x: Uint64): boolean {	x; throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
   

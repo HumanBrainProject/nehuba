@@ -82,6 +82,7 @@ export function restrictUserNavigation(viewer: Viewer) { //Exported, because 3d 
 	(<any>viewer)[hooked] = true;
 }
 
+/** @deprecated useCustomSegmentColors config option is deprecated */
 function useNehubaCustomSegmentColors(viewer: Viewer) {
 	forAllSegmentationUserLayers(viewer, layer => {
 		const { displayState } = layer;

@@ -7,6 +7,7 @@ import { SegmentColorShaderManager, SegmentColorHash } from "neuroglancer/segmen
 import { HashMapUint64 } from 'neuroglancer/gpu_hash/hash_table';
 import { GPUHashTable, HashMapShaderManager } from 'neuroglancer/gpu_hash/shader';
 
+/** @deprecated useCustomSegmentColors config option is deprecated */
 export class NehubaSegmentColorShaderManager extends SegmentColorShaderManager {
 	private readonly hashMapShaderManager = new HashMapShaderManager('customColors');
 
@@ -41,6 +42,7 @@ vec3 ${originalPrefix}(uint64_t x) {
 	}
 }
 
+/** @deprecated useCustomSegmentColors config option is deprecated */
 export class NehubaSegmentColorHash extends SegmentColorHash {
 	readonly gpuColorMap = new HashMapUint64();
 	readonly colorMap = new Map<number, {red:number, green: number, blue: number, gpu: number}>();
@@ -51,7 +53,7 @@ export class NehubaSegmentColorHash extends SegmentColorHash {
 		this.changed = changed;
 	}
 
-	// Since some listeners are already registered for changes inderectly in `SegmentationRenderLayer` constructor to old SegmentColorHash, 
+	// Since some listeners are already registered for changes indirectly in `SegmentationRenderLayer` constructor to old SegmentColorHash,
 	// We need to steal the signal!!!
 	static from(original: SegmentColorHash) {
 		const res = new NehubaSegmentColorHash(original.hashSeed, original.changed);

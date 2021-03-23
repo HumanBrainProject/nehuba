@@ -32,8 +32,9 @@ export interface Config {
 		/** Install Nehuba layout and remove Neuroglancer layouts. Nehuba layout is configured by 'layout' section of this config. */
 		useNehubaLayout?: boolean //TODO Find a way to make the layouts instance configurable 
 		/** Patch neuroglancer to use `NehubaSegmentColorHash` which provides the ability to define specific colors for segment id's instead
-		 *  of neuroglancer random choice of colors. By default it should behave exactly like original Neuroglancer if no custom user-provided colors were set through {@link NehubaViewer} API */
-		useCustomSegmentColors?: boolean //Could be on by default and removed from config since NehubaSegmentColorHash without further configuration should behave like upstream SegmentColorHash
+		 *  of neuroglancer random choice of colors. By default it should behave exactly like original Neuroglancer if no custom user-provided colors were set through {@link NehubaViewer} API
+		 *  @deprecated Use `segmentColors` property of segmentation layer in the viewer json state */
+		useCustomSegmentColors?: boolean
 		/** Patch Neuroglancer to use NehubaMeshLayer instead of original MeshLayer.
 		 *  NehubaMeshLayer provides the capability to remove the front (or any other) octant of the mesh. 
 		 *  By default it should behave exactly like Neuroglancer MeshLayer. Usage of additional capabilities is controlled by 

@@ -72,6 +72,7 @@ function fix_HideNullImageValues() {
 }
 
 //@ZeroMaintenance. Wraps original NG function, so no care needed when updating NG.
+/** @deprecated useCustomSegmentColors config option is deprecated */
 function useNehubaColorsInSegmentationRenderLayer() {
 	const originalAddRenderLayer = SegmentationUserLayer.prototype.addRenderLayer;
 	SegmentationUserLayer.prototype.addRenderLayer = function (this: SegmentationUserLayer, layer: RenderLayer) {
@@ -93,5 +94,6 @@ function useNehubaMeshInSegmentationLayer() {
 				new MultiscaleMeshLayer(this.manager.chunkManager, meshSource, this.displayState);
 		}
 		this.addRenderLayer(this.meshLayer!);
+		this.objectLayerStateChanged.dispatch();
 	};	
 }

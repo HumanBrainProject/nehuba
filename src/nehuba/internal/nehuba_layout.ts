@@ -3,6 +3,7 @@ import {NavigationState, OrientationState, Pose} from 'neuroglancer/navigation_s
 import {PerspectivePanel} from 'neuroglancer/perspective_view/panel';
 import {SliceView, SliceViewChunkSource} from 'neuroglancer/sliceview/frontend';
 import {SliceViewPanel} from 'neuroglancer/sliceview/panel';
+import {FramePickingData} from 'neuroglancer/rendered_data_panel';
 import {TrackableBoolean, ElementVisibilityFromTrackableBoolean} from 'neuroglancer/trackable_boolean';
 import {RefCounted, Borrowed} from 'neuroglancer/util/disposable';
 import {removeChildren} from 'neuroglancer/util/dom';
@@ -281,9 +282,9 @@ function useOldScaleBar(slice: SliceViewPanel, showScaleBar: TrackableBoolean) {
       new ElementVisibilityFromTrackableBoolean(/* viewer. */showScaleBar, scaleBar));
   slice.element.appendChild(scaleBar);
 
-  const originalDraw = slice.draw;
-  slice.draw = function (this: SliceViewPanel) {
-    originalDraw.call(this);
+  const originalDraw = slice.drawWithPicking;
+  slice.drawWithPicking = function (this: SliceViewPanel, pickingData: FramePickingData) {
+    const res = originalDraw.call(this, pickingData);
 
     // Update the scale bar if needed.
     {
@@ -295,6 +296,7 @@ function useOldScaleBar(slice: SliceViewPanel, showScaleBar: TrackableBoolean) {
       dimensions.nanometersPerPixel = sliceView.pixelSize;
       scaleBarWidget.update();
     }    
+    return res;
   }
 
   return slice;
@@ -313,9 +315,9 @@ export interface SliceRenderEventDetail { //TODO There is native statistics with
 }
 
 function dispatchRenderEvents(slice: SliceViewPanel) {
-  const originalDraw = slice.draw;
-  slice.draw = function (this: SliceViewPanel) {
-    originalDraw.call(this);
+  const originalDraw = slice.drawWithPicking;
+  slice.drawWithPicking = function (this: SliceViewPanel, pickingData: FramePickingData) {
+    const res = originalDraw.call(this, pickingData);
     const coordsConv = (point: vec3) => dataToOffsetPixels(slice, point);
     const detail: SliceRenderEventDetail = {
       missingImageChunks: getNumberOfMissingChunks(this.sliceView, it => it instanceof ImageRenderLayer),
@@ -323,7 +325,8 @@ function dispatchRenderEvents(slice: SliceViewPanel) {
       nanometersToOffsetPixels: coordsConv
     };
     const event = new CustomEvent(sliceRenderEventType, {bubbles: true, detail});
-    this.element.dispatchEvent(event);  
+    this.element.dispatchEvent(event);
+    return res;
   }  
 }
 

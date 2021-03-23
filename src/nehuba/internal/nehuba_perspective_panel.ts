@@ -1,9 +1,8 @@
 import {DisplayContext} from 'neuroglancer/display_context';
 import {PerspectiveViewRenderContext} from 'neuroglancer/perspective_view/render_layer';
+import {FramePickingData} from 'neuroglancer/rendered_data_panel';
 import {SliceView} from 'neuroglancer/sliceview/frontend';
 import {kAxes, mat4, transformVectorByMat4, vec3, vec4} from 'neuroglancer/util/geom';
-import {startRelativeMouseDrag} from 'neuroglancer/util/mouse_drag';
-import {ActionEvent, registerActionListener} from 'neuroglancer/util/event_action_map';
 
 import { PerspectivePanel, PerspectiveViewerState, perspectivePanelEmit, OffscreenTextures, perspectivePanelEmitOIT } from "neuroglancer/perspective_view/panel";
 import { quat } from 'neuroglancer/util/geom';
@@ -86,20 +85,16 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
 		super.disposed();
 	}
 
-  draw() {
+  drawWithPicking(pickingData: FramePickingData): boolean {
     for (let sliceView of this.sliceViews.keys()) {
       if (this.config.layout!.useNehubaPerspective!.disablePerspectiveSlicesPreloading) {
         sliceView.visibility.value = (this.viewer.showSliceViews.value && this.visibility.visible) ? WatchableVisibilityPriority.VISIBLE : WatchableVisibilityPriority.IGNORED;
       } else sliceView.visibility.value = this.visibility.value;
     }
     if (!this.navigationState.valid) {
-      return;
+      return false;
     }
-    this.onResize();
-    let {width, height} = this;
-    if (width === 0 || height === 0) {
-      return;
-    }
+    const {width, height} = this;
 
     const showSliceViews = this.viewer.showSliceViews.value;
     for (const [sliceView, unconditional] of this.sliceViews) {
@@ -131,14 +126,12 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     let ambient = 0.2;
     let directional = 1 - ambient;
 
-    let pickIDs = this.pickIDs;
-    pickIDs.clear();
-    let renderContext: PerspectiveViewRenderContext & {extra: ExtraRenderContext} = {
+    const renderContext: PerspectiveViewRenderContext & {extra: ExtraRenderContext} = {
       dataToDevice: viewProjectionMat,
       lightDirection: lightingDirection,
       ambientLighting: ambient,
       directionalLighting: directional,
-      pickIDs: pickIDs,
+      pickIDs: pickingData.pickIDs,
       emitter: perspectivePanelEmit,
       emitColor: true,
       emitPickID: true,
@@ -157,6 +150,8 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
         crossSectionBackground: this.viewer.crossSectionBackgroundColor.value
       }
     };
+
+    mat4.copy(pickingData.invTransform, this.viewProjectionMatInverse);
 
     let visibleLayers = this.visibleLayerTracker.getVisibleLayers();
 
@@ -326,6 +321,8 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     }
     const event = new CustomEvent(perspectiveRenderEventType, {bubbles: true, detail});
     this.element.dispatchEvent(event);
+
+    return true;
   }
 
   protected drawSliceViews(renderContext: PerspectiveViewRenderContext) {
