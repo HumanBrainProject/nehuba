@@ -1,6 +1,8 @@
 import {ChunkState} from 'neuroglancer/chunk_manager/base';
 import {ChunkManager} from 'neuroglancer/chunk_manager/frontend';
+import {VisibleLayerInfo} from 'neuroglancer/layer';
 import {PerspectiveViewRenderContext} from 'neuroglancer/perspective_view/render_layer';
+import {ThreeDimensionalRenderLayerAttachmentState, update3dRenderLayerAttachment} from 'neuroglancer/renderlayer';
 import {forEachVisibleSegment, getObjectKey} from 'neuroglancer/segmentation_display_state/base';
 import {getObjectColor, SegmentationDisplayState3D} from 'neuroglancer/segmentation_display_state/frontend';
 import {mat4, vec3, vec4, quat} from 'neuroglancer/util/geom';
@@ -106,21 +108,24 @@ export class NehubaMeshLayer extends MeshLayer {
 		this.meshShaderManager = new NehubaMeshShaderManager(/*fragmentRelativeVertices=*/ false, VertexPositionFormat.float32);
 	}	
 
-	draw(renderContext: PerspectiveViewRenderContext & { extra: ExtraRenderContext }) { //What if called without extra? (by normal ng layer)
+	draw(renderContext: PerspectiveViewRenderContext & { extra: ExtraRenderContext }, attachment: VisibleLayerInfo<ThreeDimensionalRenderLayerAttachmentState>) { //What if called without extra? (by normal ng layer)
 		if (!renderContext.emitColor && renderContext.alreadyEmittedPickID) {
 			// No need for a separate pick ID pass.
 			return;
 		}
-		let {gl, displayState, /*meshShaderManager*/} = this;
-		let meshShaderManager = this.meshShaderManager as NehubaMeshShaderManager;
-		let alpha = Math.min(1.0, displayState.objectAlpha.value);
+		const {gl, displayState, /*meshShaderManager*/} = this;
+		const meshShaderManager = this.meshShaderManager as NehubaMeshShaderManager;
+		const alpha = Math.min(1.0, displayState.objectAlpha.value);
 		if (alpha <= 0.0) {
 			// Skip drawing.
 			return;
 		}
-		let shader = this.getShader(renderContext.emitter);
+		const modelMatrix = update3dRenderLayerAttachment(displayState.transform.value, renderContext.displayDimensions, attachment);
+		if (modelMatrix === undefined) {
+		  return;
+		}  
+		const shader = this.getShader(renderContext.emitter);
 		shader.bind();
-		const objectToDataMatrix = this.displayState.objectToDataTransform.transform;
 		meshShaderManager.beginLayer(gl, shader, renderContext);
 
 		if (!renderContext.extra) console.error('Bad configuration. Nehuba mesh layer is used by neuroglancer code.');
@@ -129,7 +134,7 @@ export class NehubaMeshLayer extends MeshLayer {
 		const conf = (renderContext.extra && renderContext.extra.config.layout!.useNehubaPerspective!.mesh); //Is it undefined?
 		const surfaceParcellation = conf && conf.surfaceParcellation;
 
-		meshShaderManager.beginModel(gl, shader, renderContext, objectToDataMatrix);
+		meshShaderManager.beginModel(gl, shader, renderContext, modelMatrix);
 
 		let {pickIDs} = renderContext;
 		const manifestChunks = this.source.chunks;
@@ -226,10 +231,8 @@ export function getValuesForClipping(extra: ExtraRenderContext): ValuesForClippi
     const navState = mat4.create();
     let octant = (conf && conf.removeOctant) || vec4.fromValues(0.0, 0.0, 0.0, 0.0);
     if (extra && conf) {
-      const pose = extra.slicesPose;
-
       if (conf.removeBasedOnNavigation) {
-        pose.toMat4(navState);
+        extra.slicesNavigationState.toMat4(navState);
         mat4.invert(navState, navState);
       }
       
@@ -237,15 +240,16 @@ export function getValuesForClipping(extra: ExtraRenderContext): ValuesForClippi
 		  const octantZ = centerToOrigin ? extra.perspectiveNavigationState.zoomFactor.value : 1.0;
         octant = vec4.fromValues(0.0, 0.0, -(octantZ), 1.0);
 		  let perspectivePose = extra.perspectiveNavigationState.pose;
-		  let pos = centerToOrigin ? pose.position.spatialCoordinates : vec3.fromValues(0.0, 0.0, 0.0);
+		  let position = extra.slicesNavigationState.position.value;
+		  let pos = centerToOrigin ? vec3.fromValues(position[0], position[1], position[2]) : vec3.fromValues(0.0, 0.0, 0.0);
         let perspectiveQuat = perspectivePose.orientation.orientation;
-        let navQuat = quat.invert(quat.create(), pose.orientation.orientation);
+        let navQuat = quat.invert(quat.create(), extra.slicesNavigationState.pose.orientation.orientation);
         let resQuat = quat.multiply(quat.create(), navQuat, perspectiveQuat);
         let rot = mat4.fromQuat(mat4.create(), resQuat);
         vec4.transformMat4(octant, octant, rot);
-        octant[0] = octant[0] < (pos[0]/100) ? -1.0 : 1.0;
-        octant[1] = octant[1] < (pos[1]/100) ? -1.0 : 1.0;
-        octant[2] = octant[2] < (pos[2]/100) ? -1.0 : 1.0;
+        octant[0] = octant[0] < pos[0] ? -1.0 : 1.0;
+        octant[1] = octant[1] < pos[1] ? -1.0 : 1.0;
+        octant[2] = octant[2] < pos[2] ? -1.0 : 1.0;
         octant[3] = 1.0;//octant[3] < 0.0 ? -1.0 : 1.0;
       }
     }
@@ -261,6 +265,7 @@ export class VisibleSegmentsWrapper extends SharedObject implements Uint64Set {
 		for (const x of this.wrapped.hashTable) {
 			this.localHashTable.add(x);
 		}
+		this.rpcId = this.wrapped.rpcId;
 	}
 	
 	setMeshesToLoad(meshes: number[]) {
@@ -343,26 +348,28 @@ export class VisibleSegmentsWrapper extends SharedObject implements Uint64Set {
 		return result;
 	}  
 
-	get rpcId(): RpcId|null { return this.wrapped.rpcId;/* throw new Error('Unexpected member access of VisibleSegmentsWrapper'); */ }
-
+	// Accessors commented due to TS 4 https://www.typescriptlang.org/docs/handbook/release-notes/typescript-4-0.html#properties-overriding-accessors-and-vice-versa-is-an-error
+	// TODO is there an alternative? See and ask in https://github.com/microsoft/TypeScript/pull/37894
+	// get rpcId(): RpcId|null { return this.wrapped.rpcId;/* throw new Error('Unexpected member access of VisibleSegmentsWrapper'); */ }
+	rpcId: RpcId|null = null; // initialized in constructor
 	
 	// ******* Members of SharedObject, not expected to be called on wrapper *******
-	get rpc(): RPC|null { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
-	set rpc(arg: RPC|null) { arg;/* ignore */ }
-	set rpcId(arg: RpcId|null) { arg;/* ignore */ }
-	get isOwner(): boolean|undefined { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
-	get unreferencedGeneration(): number { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
-	get referencedGeneration(): number { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	// get rpc(): RPC|null { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	// set rpc(arg: RPC|null) { arg;/* ignore */ }
+	// set rpcId(arg: RpcId|null) { arg;/* ignore */ }
+	// get isOwner(): boolean|undefined { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	// get unreferencedGeneration(): number { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	// get referencedGeneration(): number { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
 	initializeSharedObject(rpc: RPC, rpcId = rpc.newId()) { rpcId; throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
 	initializeCounterpart(rpc: RPC, options: any = {}) { rpc; options; throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
 	addCounterpartRef():{'id': number | null;	'gen': number;} { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
 	ownerDispose() { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
 	counterpartRefCountReachedZero(generation: number) { generation; throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
-	get RPC_TYPE_ID(): string { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	// get RPC_TYPE_ID(): string { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
 	// ******* Members of RefCounted, not expected to be called on wrapper *******
-	set refCount(n: number) { n;/* ignore */ }
-	get refCount(): number { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
-	get wasDisposed(): boolean|undefined { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	// set refCount(n: number) { n;/* ignore */ }
+	// get refCount(): number { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
+	// get wasDisposed(): boolean|undefined { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
 	addRef(): this { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
 	dispose() { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }
 	refCountReachedZero() { throw new Error('Unexpected member access of VisibleSegmentsWrapper'); }

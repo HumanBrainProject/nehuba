@@ -2,11 +2,11 @@ import {DisplayContext} from 'neuroglancer/display_context';
 import {PerspectiveViewRenderContext} from 'neuroglancer/perspective_view/render_layer';
 import {FramePickingData} from 'neuroglancer/rendered_data_panel';
 import {SliceView} from 'neuroglancer/sliceview/frontend';
-import {kAxes, mat4, transformVectorByMat4, vec3, vec4} from 'neuroglancer/util/geom';
+import {kAxes, mat4, vec3, vec4} from 'neuroglancer/util/geom';
 
 import { PerspectivePanel, PerspectiveViewerState, perspectivePanelEmit, OffscreenTextures, perspectivePanelEmitOIT } from "neuroglancer/perspective_view/panel";
 import { quat } from 'neuroglancer/util/geom';
-import { NavigationState, Pose } from 'neuroglancer/navigation_state';
+import { NavigationState, DisplayPose } from 'neuroglancer/navigation_state';
 
 import { NehubaSliceViewRenderHelper, TransparentPlaneRenderHelper } from "nehuba/internal/nehuba_renderers";
 import { Config, SliceViewsConfig } from "nehuba/config";
@@ -31,7 +31,7 @@ export interface PerspectiveRenderEventDetail {
 export interface ExtraRenderContext {
   config: Config
   showSliceViewsCheckboxValue: boolean
-  slicesPose: Pose
+  slicesNavigationState: NavigationState
   perspectiveNavigationState: NavigationState
   /** To be set by our custom renderLayers to indicate that mesh has been rendered. So it is a return value from draw method to avoid changing draw method signature */
   meshRendered?: boolean
@@ -72,9 +72,10 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
 		super.updateProjectionMatrix();
 		//TODO Regression in PerspectivePanel.startDragViewport, can not shift - drag anymore. FIX or disable
 		if (this.config.layout!.useNehubaPerspective!.centerToOrigin) {
-			mat4.translate(this.viewProjectionMat, this.viewProjectionMat, this.navigationState.position.spatialCoordinates);
+      const pos = this.navigationState.position.value;
+			mat4.translate(this.viewProjectionMat, this.viewProjectionMat, vec3.fromValues(pos[0], pos[1], pos[2]));
 			mat4.invert(this.viewProjectionMatInverse, this.viewProjectionMat);
-		}		
+		}
 	}
 
 	disposed() {
@@ -120,14 +121,20 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
 
     // FIXME; avoid temporaries
     let lightingDirection = vec3.create();
-    transformVectorByMat4(lightingDirection, kAxes[2], this.viewMatInverse);
-    vec3.normalize(lightingDirection, lightingDirection);
+    vec3.transformQuat(
+        lightingDirection, kAxes[2], this.navigationState.pose.orientation.orientation);
+    vec3.scale(lightingDirection, lightingDirection, -1);
 
     let ambient = 0.2;
     let directional = 1 - ambient;
 
+    const {
+      navigationState:
+          {pose: {displayDimensions: {value: displayDimensions}, position: {value: globalPosition}}}
+    } = this;
+
     const renderContext: PerspectiveViewRenderContext & {extra: ExtraRenderContext} = {
-      dataToDevice: viewProjectionMat,
+      viewProjectionMat: viewProjectionMat,
       lightDirection: lightingDirection,
       ambientLighting: ambient,
       directionalLighting: directional,
@@ -138,11 +145,13 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
       alreadyEmittedPickID: false,
       viewportWidth: width,
       viewportHeight: height,
+      displayDimensions,
+      globalPosition,
       //Extra context for NehubaMeshLayer
       extra: {
         config: this.config,
         showSliceViewsCheckboxValue: this.viewer.showSliceViews.value,
-        slicesPose: (<any>this.viewer).slicesNavigationState.pose as Pose,
+        slicesNavigationState: (<any>this.viewer).slicesNavigationState as NavigationState,
         perspectiveNavigationState: this.viewer.navigationState,
         // meshRendered: false
         meshesLoaded: -1,
@@ -153,17 +162,17 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
 
     mat4.copy(pickingData.invTransform, this.viewProjectionMatInverse);
 
-    let visibleLayers = this.visibleLayerTracker.getVisibleLayers();
+    const {visibleLayers} = this.visibleLayerTracker;
 
     let hasTransparent = false;
 
     let hasAnnotation = false;
 
     // Draw fully-opaque layers first.
-    for (let renderLayer of visibleLayers) {
+    for (const [renderLayer, attachment] of visibleLayers) {
       if (!renderLayer.isTransparent) {
         if (!renderLayer.isAnnotation) {
-          renderLayer.draw(renderContext);
+          renderLayer.draw(renderContext, attachment);
         } else {
           hasAnnotation = true;
         }
@@ -190,9 +199,9 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
       ]);
       renderContext.emitPickID = false;
 
-      for (let renderLayer of visibleLayers) {
+      for (const [renderLayer, attachment] of visibleLayers) {
         if (renderLayer.isAnnotation) {
-          renderLayer.draw(renderContext);
+          renderLayer.draw(renderContext, attachment);
         }
       }
       gl.depthFunc(WebGL2RenderingContext.LESS);
@@ -223,9 +232,9 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
       renderContext.emitter = perspectivePanelEmitOIT;
       gl.blendFuncSeparate(WebGL2RenderingContext.ONE, WebGL2RenderingContext.ONE, WebGL2RenderingContext.ZERO, WebGL2RenderingContext.ONE_MINUS_SRC_ALPHA);
       renderContext.emitPickID = false;
-      for (let renderLayer of visibleLayers) {
+      for (const [renderLayer, attachment] of visibleLayers) {
         if (renderLayer.isTransparent) {
-          renderLayer.draw(renderContext);
+          renderLayer.draw(renderContext, attachment);
         }
       }
 
@@ -258,9 +267,9 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     // we've already done one drawing pass.
     gl.enable(WebGL2RenderingContext.POLYGON_OFFSET_FILL);
     gl.polygonOffset(-1, -1);
-    for (let renderLayer of visibleLayers) {
+    for (const [renderLayer, attachment] of visibleLayers) {
       renderContext.alreadyEmittedPickID = !renderLayer.isTransparent && !renderLayer.isAnnotation;
-      renderLayer.draw(renderContext);
+      renderLayer.draw(renderContext, attachment);
     }
     gl.disable(WebGL2RenderingContext.POLYGON_OFFSET_FILL);
 
@@ -274,38 +283,32 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
      * 
      *  Until then we use the old scalebar widget
      */
-    if (this.viewer.showScaleBar.value && this.viewer.orthographicProjection.value) {
-      const { dimensions } = this.scaleBarWidget;
-      dimensions.targetLengthInPixels = Math.min(width / 4, 100);
-      dimensions.nanometersPerPixel = this['nanometersPerPixel']; //this.nanometersPerPixel; //TODO Submit PR to make protected in the follow-up of PR #44
-      this.scaleBarWidget.update();
-    }
+    // FIXME
+    // if (this.viewer.showScaleBar.value && this.viewer.orthographicProjection.value) {
+    //   //Replaces original neuroglancer code of the block
+    //   const { dimensions } = this.scaleBarWidget;
+    //   dimensions.targetLengthInPixels = Math.min(width / 4, 100);
+    //   dimensions.nanometersPerPixel = this['nanometersPerPixel']; //this.nanometersPerPixel; //TODO Submit PR to make protected in the follow-up of PR #44
+    //   this.scaleBarWidget.update();
+    // }
 
      /* Original neuroglancer code modulo access to private properties: */
-    // if (this.viewer.showScaleBar.value && this.viewer.orthographicProjection.value) {
-    //   // Only modify color buffer.
-    //   gl.drawBuffers([
-    //     gl.COLOR_ATTACHMENT0,
-    //   ]);
+     if (this.viewer.showScaleBar.value && this.viewer.orthographicProjection.value) {
+      // Only modify color buffer.
+      gl.drawBuffers([
+        gl.COLOR_ATTACHMENT0,
+      ]);
 
-    //   gl.disable(WebGL2RenderingContext.DEPTH_TEST);
-    //   gl.enable(WebGL2RenderingContext.BLEND);
-    //   gl.blendFunc(WebGL2RenderingContext.SRC_ALPHA, WebGL2RenderingContext.ONE_MINUS_SRC_ALPHA);
-    //   const scaleBarTexture = this['scaleBarTexture']; //const {scaleBarTexture} = this; //TODO Submit PR to make protected in the follow-up of PR #44
-    //   const options = this.viewer.scaleBarOptions.value;
-    //   const { dimensions } = scaleBarTexture;
-    //   dimensions.targetLengthInPixels = Math.min(
-    //     options.maxWidthFraction * width, options.maxWidthInPixels * options.scaleFactor);
-    //   dimensions.nanometersPerPixel = this['nanometersPerPixel']; //this.nanometersPerPixel; //TODO Submit PR to make protected in the follow-up of PR #44
-    //   scaleBarTexture.update(options);
-    //   gl.viewport(
-    //     options.leftPixelOffset * options.scaleFactor,
-    //     options.bottomPixelOffset * options.scaleFactor, scaleBarTexture.width,
-    //     scaleBarTexture.height);
-    //   const scaleBarCopyHelper = this['scaleBarCopyHelper']; //TODO Submit PR to make protected in the follow-up of PR #44
-    //   /* this. */scaleBarCopyHelper.draw(scaleBarTexture.texture);
-    //   gl.disable(WebGL2RenderingContext.BLEND);
-    // }
+      gl.disable(WebGL2RenderingContext.DEPTH_TEST);
+      gl.enable(WebGL2RenderingContext.BLEND);
+      gl.blendFunc(WebGL2RenderingContext.SRC_ALPHA, WebGL2RenderingContext.ONE_MINUS_SRC_ALPHA);
+      const scaleBars = this['scaleBars']; //const {scaleBars} = this; //TODO Submit PR to make protected in the follow-up of PR #44
+      const options = this.viewer.scaleBarOptions.value;
+      scaleBars.draw(
+          width, this.navigationState.pose.displayDimensions.value,
+          this.navigationState.zoomFactor.value / this.height, options);
+      gl.disable(WebGL2RenderingContext.BLEND);
+    }    
 
     this.offscreenFramebuffer.unbind();
 
@@ -329,7 +332,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     const conf = this.config.layout!.useNehubaPerspective!;
     
     let {sliceViewRenderHelper, nehubaSliceViewRenderHelper, transparentPlaneRenderHelper} = this;
-    let {lightDirection, ambientLighting, directionalLighting, dataToDevice} = renderContext;
+    let {lightDirection, ambientLighting, directionalLighting, viewProjectionMat} = renderContext;
 
     const showSliceViews = this.viewer.showSliceViews.value;
     if (!conf.hideAllSlices) {
@@ -339,7 +342,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
         if (!unconditional && !showSliceViews) {
           continue;
         }
-        if (sliceView.width === 0 || sliceView.height === 0 || !sliceView.hasValidViewport) {
+        if (sliceView.width === 0 || sliceView.height === 0 || !sliceView.valid) {
             continue;
         }
         if (conf.hideSlices) {
@@ -354,15 +357,16 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
           if (sliceId && conf.hideSlices.indexOf(sliceId) > -1) continue; //TODO use hideSlices.includes(sliceId)  
         }
 
-        let scalar = Math.abs(vec3.dot(lightDirection, sliceView.viewportAxes[2]));
+        let scalar =
+            Math.abs(vec3.dot(lightDirection, sliceView.viewportNormalInCanonicalCoordinates));
         let factor = ambientLighting + scalar * directionalLighting;
         let mat = tempMat4;
         // Need a matrix that maps (+1, +1, 0) to projectionMat * (width, height, 0)
         mat4.identity(mat);
         mat[0] = sliceView.width / 2.0;
         mat[5] = -sliceView.height / 2.0;
-        mat4.multiply(mat, sliceView.viewportToData, mat);
-        mat4.multiply(mat, dataToDevice, mat);
+        mat4.multiply(mat, sliceView.invViewMatrix, mat);
+        mat4.multiply(mat, viewProjectionMat, mat);
         const backgroundColor = vec4.create();
         const crossSectionBackgroundColor = conf.perspectiveSlicesBackground || this.viewer.crossSectionBackgroundColor.value;
         backgroundColor[0] = crossSectionBackgroundColor[0];
@@ -387,13 +391,14 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
         mat4.identity(mat);
         mat[0] = sliceView.width / 2.0 / m;
         mat[5] = -sliceView.height / 2.0 / m;
-        mat4.multiply(mat, sliceView.viewportToData, mat);
+        mat4.multiply(mat, sliceView.invViewMatrix, mat);
 
         //We want this plane to move only in the direction perpendicular to the plane.
         //So we need to undo translation in the other 2 directions.
-        let dtd = mat4.clone(dataToDevice); //dataToDevice is actually this.projectionMat
-        let pos = vec3.clone(this.navigationState.position.spatialCoordinates);
-        let axis = vec3.clone(sliceView.viewportAxes[2]);
+        let dtd = mat4.clone(viewProjectionMat);
+        const position = this.navigationState.position.value;
+        let pos = vec3.fromValues(position[0], position[1], position[2]);
+        let axis = vec3.clone(sliceView.viewportNormalInCanonicalCoordinates);
         let rot: quat = (<any>this.viewer).slicesNavigationState.pose.orientation.orientation;
         let inv = quat.invert(quat.create(), rot);
         vec3.transformQuat(axis, axis, inv);
@@ -422,8 +427,8 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
           mat4.identity(mat);
           mat[0] = sliceView.width / 2.0;
           mat[5] = -sliceView.height / 2.0;
-          mat4.multiply(mat, sliceView.viewportToData, mat);
-          mat4.multiply(mat, dataToDevice, mat);
+          mat4.multiply(mat, sliceView.invViewMatrix, mat);
+          mat4.multiply(mat, viewProjectionMat, mat);
           const color = conf.drawZoomLevels.color || vec4.fromValues(1.0, 0.0, 0.0, 0.2);
           transparentPlaneRenderHelper.draw(mat, color, {factor: -1.0, units: 1.0}); //TODO Add z offset values to config
         }

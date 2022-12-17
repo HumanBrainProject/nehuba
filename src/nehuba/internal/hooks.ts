@@ -1,13 +1,13 @@
 import { Viewer } from 'neuroglancer/viewer';
-import { BoundingBox, vec3 } from 'neuroglancer/util/geom';
 import { SegmentationUserLayer } from "neuroglancer/segmentation_user_layer";
-import { DisplayContext } from 'neuroglancer/display_context';
+import { Position } from 'neuroglancer/navigation_state';
 
 import { Config } from "nehuba/config";
 import { NehubaSegmentColorHash } from "nehuba/internal/nehuba_segment_color";
 
 export function configureInstance(viewer: Viewer, config: Config) {
-	if (config.restrictUserNavigation) restrictUserNavigation(viewer);
+	const layoutConfig = config.layout || {};
+	if (config.restrictUserNavigation || (layoutConfig.useNehubaPerspective && !layoutConfig.useNehubaPerspective.doNotRestrictUserNavigation)) restrictUserNavigation(viewer.navigationState.position);
 	// if (config.disableSegmentSelection) disableSegmentSelection(viewer); //@deprecated Handled in NehubaViewer constructor
 	
 	// !!! Depends on complementary patch in `patches.ts`, so don't rxify it just yet (it's global)
@@ -17,8 +17,8 @@ export function configureInstance(viewer: Viewer, config: Config) {
 	if (config.globals && config.globals.useNehubaLayout) {
 		//Remap action to nehuba
 		viewer.inputEventBindings.sliceView.set('at:shift+mousedown0', {action: 'nehuba-rotate-via-mouse-drag', stopPropagation: true}); //Actual action listener is registered by NehubaLayout
-		if (config.layout && config.layout.useNehubaPerspective) {
-			if (!config.layout.useNehubaPerspective.enablePerspectiveDrag) {
+		if (layoutConfig.useNehubaPerspective) {
+			if (!layoutConfig.useNehubaPerspective.enablePerspectiveDrag) {
 				//In principal can make toggleable, keep the previous action and delegate to it conditionally
 				viewer.inputEventBindings.perspectiveView.set('at:shift+mousedown0', {action: 'ignore', stopPropagation: true});
 				viewer.inputEventBindings.perspectiveView.set('at:touchtranslate2', {action: 'ignore', stopPropagation: true});
@@ -32,54 +32,35 @@ export function configureParent(parent: HTMLElement, config: Config) {
 	/*if (config.rightClickWithCtrl)*/ noRightClickWithoutCtrl(parent, config);
 }
 
-const bbox   = Symbol('bbox');
-const hooked = Symbol('hooked');
+//TODO more than 3 dimensions and rename
+function min3(out: Float32Array, other: Float32Array) {
+	out[0] = Math.min(out[0], other[0]);
+	out[1] = Math.min(out[1], other[1]);
+	out[2] = Math.min(out[2], other[2]);
+}
+function max3(out: Float32Array, other: Float32Array) {
+	out[0] = Math.max(out[0], other[0]);
+	out[1] = Math.max(out[1], other[1]);
+	out[2] = Math.max(out[2], other[2]);
+}
+
 //@MinimalMaintenance. Wraps original NG function, so no care needed when updating NG, unless setting of coordinates logic changes significantly upstream or the bounding box is moved/removed
 /** Restricts user movements to the boundaries of displayed volumes, i.e
  *  prevents user to navigate away from the data, which does not make sense anyway.
  *  Required for clipped mesh 3d view, otherwise it looks ugly and broken if the user does navigate far away from slice field of view.
  *  Currently there is no way to 'undo' this restriction for the provided Viewer instance.*/
-export function restrictUserNavigation(viewer: Viewer) { //Exported, because 3d view layout depends on it and call this hook by itself. TODO There must be better way...
-	if ((<any>viewer)[hooked]) return;
-
-	// let isFiniteVec = (vec: vec3) => { return Number.isFinite(vec[0]) && Number.isFinite(vec[1]) && Number.isFinite(vec[2]); }
-	// let isFiniteBox = (box: BoundingBox) => { return isFiniteVec(box.upper) && isFiniteVec(box.lower); }
-
-	viewer.registerDisposer(viewer.layerManager.layersChanged.add(() => {
-		let boxFound = false;
-		let box = new BoundingBox(
-			vec3.fromValues(Infinity, Infinity, Infinity),
-			vec3.fromValues(-Infinity, -Infinity, -Infinity));
-		for (let managedLayer of viewer.layerManager.managedLayers) {
-			let userLayer = managedLayer.layer;
-			if (userLayer == null) continue;
-			for (let renderLayer of userLayer.renderLayers) {
-				let boundingBox = renderLayer.boundingBox;
-				if (boundingBox == null) continue;
-				vec3.min(box.lower, box.lower, boundingBox.lower);
-				vec3.max(box.upper, box.upper, boundingBox.upper);
-				boxFound = true;
-			}
-		};
-		if (boxFound/*isFiniteBox(box)*/) (<any>viewer.navigationState.position)[bbox] = box;
-		if (boxFound/*isFiniteBox(box)*/) (<any>viewer.navigationState.pose)[bbox] = box; //temp
-		if (boxFound/*isFiniteBox(box)*/) viewer.navigationState.position.changed.dispatch();
-	}));
-	//Neuroglancer sets position by directly settting coordinates of spatialCoordinates vector (we don't want to intercept that)
-	//and then calling dispatch() of respective signal, which we decorate here to set coordinates back into the bounding box.
-	let { position } = viewer.navigationState;
+function restrictUserNavigation(position: Position) {
 	const dispatch = position.changed.dispatch;
 	position.changed.dispatch = function () {
-		let box: BoundingBox|undefined = (<any>position)[bbox];
-		if (box) {
-			let pos = position.spatialCoordinates;
-			vec3.min(pos, pos, box.upper);
-			vec3.max(pos, pos, box.lower);
+		const space = position.coordinateSpace.value;
+		if (space.valid) {
+			const pos = position.value;
+			const box = space.bounds;
+			min3(pos, new Float32Array(box.upperBounds));
+			max3(pos, new Float32Array(box.lowerBounds));	
 		}
 		dispatch();
 	};
-	
-	(<any>viewer)[hooked] = true;
 }
 
 /** @deprecated useCustomSegmentColors config option is deprecated */

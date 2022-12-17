@@ -26,7 +26,7 @@ export interface Config {
 	 *  Currently this global options are checked and patches are applied when the first instance or the viewer is created.
 	 *  For subsequent instances this section is ignored. Be warned. */
 	globals?: { //TODO How to treat for second instance? Check values/ignore/error? //TODO Get rid of globals section
-		/** Don't display 'null' in layer panel value field for images. TODO Submit PR upstream? */
+		/** Don't display 'null' in layer panel value field for images.*/ //TODO seems to be fixed upstream at some point, so TODO remove
 		hideNullImageValues?: boolean
 
 		/** Install Nehuba layout and remove Neuroglancer layouts. Nehuba layout is configured by 'layout' section of this config. */
@@ -34,16 +34,12 @@ export interface Config {
 		/** Patch neuroglancer to use `NehubaSegmentColorHash` which provides the ability to define specific colors for segment id's instead
 		 *  of neuroglancer random choice of colors. By default it should behave exactly like original Neuroglancer if no custom user-provided colors were set through {@link NehubaViewer} API
 		 *  @deprecated Use `segmentColors` property of segmentation layer in the viewer json state */
-		useCustomSegmentColors?: boolean
+		useCustomSegmentColors?: boolean //TODO currently does not work / not available TODO remove
 		/** Patch Neuroglancer to use NehubaMeshLayer instead of original MeshLayer.
 		 *  NehubaMeshLayer provides the capability to remove the front (or any other) octant of the mesh. 
 		 *  By default it should behave exactly like Neuroglancer MeshLayer. Usage of additional capabilities is controlled by 
 		 *  'layout.useNehubaPerspective.mesh' section of this config.*/
 		useNehubaMeshLayer?: boolean //Could be on by default and removed from config since NehubaMeshLayer without further configuration should behave like upstream MeshLayer
-		/** Patch Neuroglancer SingleMeshLayer to provide the capability to remove the front (or any other) octant of the mesh.
-		 *  By default it should behave exactly like not patched neuroglancer SingleMeshLayer. Usage of additional capabilities is controlled by 
-		 *  'layout.useNehubaPerspective.mesh' section of this config.*/
-		useNehubaSingleMeshLayer?: boolean //Could be on by default and removed from config since patched SingleMeshLayer without further configuration should behave like upstream SingleMeshLayer
 	}
 	/** Intercept mouse wheel events on the parent DOM element of the viewer, flip the ctrl flag and propagate further.
 	 *  Effectively tricking neuroglancer to think that ctrl button is pressed when it is not and vice versa. Toggleable. */
@@ -71,7 +67,7 @@ export interface Config {
 	/** Disables 'Highlighting' when mouse hovers over a segment. Currently is only used by BigBrain preview, because with 2 large segments this highlighting 
 	 *  is just annoying flickering. Semi-toggleable, meaning that toggling will affect only freshly added layers, but not the ones already present. */
 	disableSegmentHighlighting?: boolean
-	/** By default neuroglancer only loads (if present) corresponding meshed for selected segments.
+	/** By default neuroglancer only loads (if present) corresponding meshes for selected segments.
 	 *  This option takes control of meshes loaded by background thread and enables the use of `setMeshesToLoad` method of `NehubaViewer` to specify the exact list
 	 *  of meshes to be loaded. All (and only) of the meshes from provided list are then loaded by the background thread. This set of meshes will be used by {NehubaMeshLayer}
 	 *  as "All meshes", e.g. displayed in 3d view when front octant is removed or when "Slices" checkbox is unchecked and no segment is selected. In the former case 
@@ -99,7 +95,7 @@ export interface Config {
 		 *  or white for scanned bigbrain images (background is maximum intensity of light). Will override `crossSectionBackground` and 'perspectiveViewBackground' property of the viewer after creation.
 		 *  It is important to have right background color in removePerspectiveSlicesBackground procedure, which is quite vital for a so-called "3d view".
 		 *  Not toggleable, change `crossSectionBackground` property of the viewer if needed.*/
-		imageBackground: vec3 //TODO make optional
+		imageBackground?: vec3
 		/** Initial neuroglancer state json (encoded in url). Used when creating a viewer. Changing this property after that will have no effect. So not toggleable.
 		 *  Use API call [TODO] to set the state after creation. */
 		initialNgState?: any //Untyped as in Neuroglancer, but TODO should make an interface describing it.
@@ -117,7 +113,7 @@ export interface Config {
 		/** Hide neuroglancer 'Slices' checkbox in perspective view. Toggleable, but needs relayout to be changed. */
 		hideSliceViewsCheckbox?: boolean
 		/** Use NehubaPerspective instead of neuroglancer Perspective. Provides the ability to remove the front (or any other) octant of the mesh
-		 *  (if 'globals.useNehubaMeshLayer' or 'globals.useNehubaSingleMeshLayer' is on) and other customisations.
+		 *  (if 'globals.useNehubaMeshLayer' is on) and other customisations.
 		 *  By default shift-drag is disabled,    that should be changed because the default behavior should be the same as upstream NG //TODO
 		 *  By default restricts user navigation, that should be changed because the default behavior should be the same as upstream NG //TODO 
 		 *  Toggleable with exception, but needs relayout to be changed. Exception: Currently shift-drag is remapped (to be disabled) if `useNehubaPerspective`

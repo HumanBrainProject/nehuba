@@ -30,20 +30,20 @@ export class NehubaViewer {
 	/** Attention! Using 'null' values to indicate that mouse left "image-containing" area, so that relevant action
 	 *  could be taken, such as clearing mouse coordinates in UI. Therefore is it NECESSARY to check value for null before using it. */
 	readonly mousePosition: {
-		readonly inRealSpace: Observable<vec3 | null>, 
-		readonly inVoxels: Observable<vec3 | null> 
+		// readonly inRealSpace: Observable<vec3 | null>,  //FIXME
+		readonly inVoxels: Observable<Float32Array | null> 
 	}
 	readonly navigationState: {
 		readonly position: {
-			readonly inRealSpace: Observable<vec3>, 
-			readonly inVoxels: Observable<vec3> 
+			// readonly inRealSpace: Observable<Float32Array>, //FIXME
+			readonly inVoxels: Observable<Float32Array> 
 		},
 		readonly orientation: Observable<quat>,
 		readonly sliceZoom: Observable<number>,
-		readonly full: Observable<{position: vec3, orientation: quat, zoom: number}>,
+		readonly full: Observable<{position: Float32Array, orientation: quat, zoom: number}>,
 		readonly perspectiveZoom: Observable<number>,
 		readonly perspectiveOrientation: Observable<quat>,
-		readonly all: Observable<{position: vec3, orientation: quat, zoom: number, perspectiveZoom: number, perspectiveOrientation: quat}>,
+		readonly all: Observable<{position: Float32Array, orientation: quat, zoom: number, perspectiveZoom: number, perspectiveOrientation: quat}>,
 	}
 	/** Attention! Using 'null' values to indicate that mouse left the segment, image or layer, so that relevant action
 	 *  could be taken, such as clearing segment name and details or image greay value in UI. Therefore is it NECESSARY to check value for null before using it. */
@@ -75,38 +75,34 @@ export class NehubaViewer {
 		return () => s.unsubscribe();
 	}
 	/** @returns {() => void} a function to remove this callback in the future */
-	addNavigationStateCallbackInRealSpaceCoordinates(callback: (position: vec3) => void) {
-		const s = this.navigationState.position.inRealSpace.subscribe(position => callback(position), this.onError);
-		return () => s.unsubscribe();
-	}
+	// FIXME
+	// addNavigationStateCallbackInRealSpaceCoordinates(callback: (position: Float32Array) => void) {
+	// 	const s = this.navigationState.position.inRealSpace.subscribe(position => callback(position), this.onError);
+	// 	return () => s.unsubscribe();
+	// }
 	/** @returns {() => void} a function to remove this callback in the future */	
-	addNavigationStateCallbackInVoxelCoordinates(callback: (position: vec3) => void) {
+	addNavigationStateCallbackInVoxelCoordinates(callback: (position: Float32Array) => void) {
 		const s = this.navigationState.position.inVoxels.subscribe(position => callback(position), this.onError);
 		return () => s.unsubscribe();
 	}
 	/** Attention! Will pass 'null' value to callback in order to indicate that mouse left "image-containing" area, so that relevant action
 	 *  could be taken, such as clearing mouse coordinates in UI. Therefore is it NECESSARY to check position for null before using it. 
 	 *  @returns {() => void} a function to remove this callback in the future  */
-	addMousePositionCallbackInRealSpaceCoordinates(callback: (position: vec3 | null) => void) {
-		const s = this.mousePosition.inRealSpace.subscribe(position => callback(position), this.onError);
-		return () => s.unsubscribe();
-	}
+	// FIXME
+	// addMousePositionCallbackInRealSpaceCoordinates(callback: (position: vec3 | null) => void) {
+	// 	const s = this.mousePosition.inRealSpace.subscribe(position => callback(position), this.onError);
+	// 	return () => s.unsubscribe();
+	// }
 	/** Attention! Will pass 'null' value to callback in order to indicate that mouse left "image-containing" area, so that relevant action
 	 *  could be taken, such as clearing mouse coordinates in UI. Therefore is it NECESSARY to check position for null before using it. 
 	 *  @returns {() => void} a function to remove this callback in the future  */
-	addMousePositionCallbackInVoxelCoordinates(callback: (position: vec3 | null) => void) {
+	addMousePositionCallbackInVoxelCoordinates(callback: (position: Float32Array | null) => void) {
 		const s = this.mousePosition.inVoxels.subscribe(position => callback(position), this.onError);
 		return () => s.unsubscribe();
 	}
 
-	setPosition(newPosition: vec3, realSpace?: boolean) {
-		const {position} = this.ngviewer.navigationState.pose;
-		// TODO add `if (position.valid) {` check ???? (from navigateToOrigin)
-		if (realSpace) { 
-			vec3.copy(position.spatialCoordinates, newPosition);
-			position.markSpatialCoordinatesChanged();
-		}
-		else position.setVoxelCoordinates(newPosition);
+	setPosition(newPosition: Float32Array) {
+		this.ngviewer.navigationState.pose.position.value = newPosition;
 	}
 
 	/** @throws Will throw an error if none or more then one segmentations found matching optional {layer} criteria */
@@ -266,13 +262,11 @@ export class NehubaViewer {
 		const nav = viewer.navigationState;
 		this.navigationState = {
 			position: {
-				inRealSpace: rxify(nav.position, p => vec3.clone(p.spatialCoordinates)),
+				// inRealSpace: Observable.empty(), // FIXME
 				inVoxels: rxify(nav.position, p => {
-					const voxelPos = vec3.create();
-					if (p.getVoxelCoordinates(voxelPos)) {
-						for (let i = 0; i < 3; ++i) voxelPos[i] = Math.floor(voxelPos[i]);
-						return voxelPos;
-					} else return null;
+					const voxelPos = p.value.slice();
+					for (let i = 0; i < 3; ++i) voxelPos[i] = Math.floor(voxelPos[i]);
+					return voxelPos;
 				}, {share: false}).notNull().publishReplay(1).refCount()
 			},
 			orientation: rxify(nav.pose.orientation, o => quat.clone(o.orientation)),
@@ -280,7 +274,7 @@ export class NehubaViewer {
 			perspectiveZoom: rxify({s: viewer.perspectiveNavigationState.zoomFactor, r: viewer.perspectiveNavigationState}, z => z.value),
 			perspectiveOrientation: rxify(viewer.perspectiveNavigationState.pose.orientation, o => quat.clone(o.orientation)),
 			full: rxify(nav, n => { return {
-				position: vec3.clone(n.position.spatialCoordinates), 
+				position: n.position.value.slice(), 
 				orientation: quat.clone(n.pose.orientation.orientation), 
 				zoom: n.zoomFactor.value
 			}}),
@@ -290,13 +284,13 @@ export class NehubaViewer {
 			}
 		}
 
-		const mouse = rxify({s: viewer.mouseState, r: viewer}, m => m.active ? vec3.clone(m.position) : null);
+		const mouse = rxify({s: viewer.mouseState, r: viewer}, m => m.active ? m.position.slice() : null);
 		this.mousePosition = {
-			inRealSpace: mouse,
+			// inRealSpace: mouse,
 			inVoxels: mouse.map( position => {
 				if (position) {
-					const voxelPos = nav.pose.position.voxelSize.voxelFromSpatial(vec3.create(), position);
-					for (let i = 0; i < 3; ++i) voxelPos[i] = Math.round(voxelPos[i]);
+					const voxelPos = position.slice();
+					for (let i = 0; i < 3; ++i) voxelPos[i] = Math.floor(voxelPos[i]);
 					return voxelPos;
 				} else return position;
 			}).publishReplay(1).refCount()
@@ -313,12 +307,6 @@ export class NehubaViewer {
 		
 		this.createdSegmentationUserLayers.subscribe(l => {if (this.config.disableSegmentSelection) disableSegmentSelectionForLayer(l)});
 		this.createdSegmentationUserLayers.subscribe(l => {if (this.config.disableSegmentHighlighting) disableSegmentHighlightingForLayer(l)});
-		this.createdSegmentationUserLayers.subscribe(layer => {
-			if (this.config.enableMeshLoadingControl) {
-				const { displayState } = layer;
-				if (!(displayState.visibleSegments instanceof VisibleSegmentsWrapper)) displayState.visibleSegments = new VisibleSegmentsWrapper(displayState.visibleSegments);
-			}
-		});
 
 		const userLayersWithNames = managedLayers.let(toUserLayersWithNames);
 		
@@ -328,11 +316,11 @@ export class NehubaViewer {
 		.unseen(it => it.layer)
 		.flatMap(it => {
 			const name = it.name;
-			const url = it.layer.volumePath;
+			// const url = it.layer.volumePath; FIXME
 			return rxify(it.layer.displayState.segmentSelectionState, s => {
 				return {
 					segment: s.hasSelectedSegment ? this.segmentToNumber(s.selectedSegment) : null,
-					layer: {name, url}
+					layer: {name/* , url */} // FIXME url
 				}
 			})
 		}).publishReplay(1).refCount(); //Cashing last emission does not make a lot of sense here since we are merging different layers
@@ -354,14 +342,14 @@ export class NehubaViewer {
 		if (res instanceof NehubaSegmentColorHash) return res;
 		else throw Error('Looks like neuroglancer was not patched and hooked to support custom segment colors. Are you sure you enabled it by `config.globals.useCustomSegmentColors: true` or similar?');//this.throwError('Looks like ');
 	}
-	private getSingleSegmentation(layer?: {name?: string, url?:string}) {
+	private getSingleSegmentation(layer?: {name?: string/* , url?:string */}) { //FIXME url
 		const res = this.ngviewer.layerManager.managedLayers
 			.filter(l => { return !layer || !layer.name || l.name === layer.name })
 			.map(l  => { return l.layer; })
 			.filter(l => { return !!l; }) // null-check, just in case, perchaps not needed
 			.filter(l => { return l instanceof SegmentationUserLayer; })
 			.map(l => { return l as SegmentationUserLayer })
-			.filter(l => { return !layer || !layer.url || l.volumePath === layer.url })
+			// .filter(l => { return !layer || !layer.url || l.volumePath === layer.url }) FIXME
 		if (res.length === 0) this.throwError('No parcellation found');
 		if (res.length > 1) this.throwError('Ambiguous request. Multiple parcellations found')
 		return res[0];
