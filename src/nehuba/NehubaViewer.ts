@@ -402,7 +402,7 @@ function toLayerValues(mouseLayer: Observable<{mouse: MouseSelectionState, layer
 		const userLayer = it.layer.userLayer;
 		const value = userLayer.getValueAt(it.mouse.position, it.mouse);
 		let url = (userLayer as any).volumePath;
-		if (!url) url = (userLayer as any).parameters.meshSourceUrl;
+		if (!url) url = (userLayer as any).parameters && (userLayer as any).parameters.meshSourceUrl;
 		return {value: value === 0 ? 0 : (value ? value : null), layer: {name: it.layer.name, url: url ? url as string : undefined}};
 	});
 }
