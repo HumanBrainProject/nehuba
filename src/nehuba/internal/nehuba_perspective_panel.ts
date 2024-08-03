@@ -71,7 +71,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
 	updateProjectionMatrix() {
 		super.updateProjectionMatrix();
 		//TODO Regression in PerspectivePanel.startDragViewport, can not shift - drag anymore. FIX or disable
-		if (this.config.layout!.useNehubaPerspective!.centerToOrigin) {
+		if (this.config && this.config.layout && this.config.layout.useNehubaPerspective && this.config.layout.useNehubaPerspective.centerToOrigin) {
       const pos = this.navigationState.position.value;
 			mat4.translate(this.viewProjectionMat, this.viewProjectionMat, vec3.fromValues(pos[0], pos[1], pos[2]));
 			mat4.invert(this.viewProjectionMatInverse, this.viewProjectionMat);
