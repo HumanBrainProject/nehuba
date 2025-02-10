@@ -389,6 +389,8 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
         let mat = tempMat4;
         // Need a matrix that maps (+1, +1, 0) to projectionMat * (width, height, 0)
         mat4.identity(mat);
+        
+        
         mat[0] = sliceView.width / 2.0 / m;
         mat[5] = -sliceView.height / 2.0 / m;
         mat4.multiply(mat, sliceView.invViewMatrix, mat);
@@ -412,6 +414,15 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
         mat4.translate(dtd, dtd, untranslate);
         mat4.multiply(mat, dtd, mat);
         // mat4.multiply(mat, dataToDevice, mat);
+
+        const normalizedTranslate = conf.drawSubstrates.normalizedTranslate;
+        if (normalizedTranslate) {
+          mat4.translate(mat, mat, [
+            normalizedTranslate[0] * 2,
+            normalizedTranslate[1] * 2,
+            normalizedTranslate[2] * 2,
+          ]);
+        }
         const color = conf.drawSubstrates.color || vec4.fromValues(0.0, 0.0, 1.0, 0.2);
         transparentPlaneRenderHelper.draw(mat, color, {factor: 3.0, units: 1.0}); //TODO Add z offset values to config
       }
