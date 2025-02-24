@@ -195,8 +195,8 @@ export interface Config {
 			drawSubstrates?: {
 				/** Default is vec4.fromValues(0.0, 0.0, 1.0, 0.2) if not specified. Toggleable (needs redraw). */
 				color?: vec4,
-				/** Translate substrate by x, y, z, if defined. [1, 1, 1] will move the substrate 1 l/w/h */
-				normalizedTranslate?: vec3,
+				/** Translate substrate by x, y, z nm */
+				translate?: vec3,
 			}
 			/** Draw transparent planes on top of slices in the perspective view to indicate zoom level of planar views. Toggleable (needs redraw).*/
 			drawZoomLevels?: {

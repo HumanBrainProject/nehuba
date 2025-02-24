@@ -382,6 +382,9 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
             1);
       }
     }
+
+    const substrateTranslate = (conf && conf.drawSubstrates && conf.drawSubstrates.translate) || [0, 0, 0]
+
     // Reverse-order, we actually draw substrate after the slice. 
     if (conf.drawSubstrates && showSliceViews) {
       const m = (conf.fixedZoomPerspectiveSlices && conf.fixedZoomPerspectiveSlices.sliceViewportSizeMultiplier) || 1.0 ;
@@ -407,7 +410,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
         vec3.transformQuat(pos, pos, inv);
         let untranslate = vec3.create();
         for (var i = 0; i < 3; i++) {
-          if (Math.round(axis[i]) === 0) untranslate[i] = -pos[i];
+          if (Math.round(axis[i]) === 0) untranslate[i] = -pos[i] + substrateTranslate[i];
           else untranslate[i] = 0;
         }
         vec3.transformQuat(untranslate, untranslate, rot);
@@ -415,14 +418,6 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
         mat4.multiply(mat, dtd, mat);
         // mat4.multiply(mat, dataToDevice, mat);
 
-        const normalizedTranslate = conf.drawSubstrates.normalizedTranslate;
-        if (normalizedTranslate) {
-          mat4.translate(mat, mat, [
-            normalizedTranslate[0] * 2,
-            normalizedTranslate[1] * 2,
-            normalizedTranslate[2] * 2,
-          ]);
-        }
         const color = conf.drawSubstrates.color || vec4.fromValues(0.0, 0.0, 1.0, 0.2);
         transparentPlaneRenderHelper.draw(mat, color, {factor: 3.0, units: 1.0}); //TODO Add z offset values to config
       }
