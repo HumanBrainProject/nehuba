@@ -1,4 +1,7 @@
 export { vec3, vec4, quat } from 'neuroglancer/util/geom';
+export { registerTool } from "neuroglancer/ui/tool";
+export { registerAnnotationTypeRenderHandler } from "neuroglancer/annotation/type_handler";
+
 
 export { Config, removeBackgroundMode } from './config';
 export { createNehubaViewer, NehubaViewer } from './NehubaViewer';
