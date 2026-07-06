@@ -17,7 +17,7 @@ import type { FramePickingData } from "neuroglancer/unstable/rendered_data_panel
 import { ImageRenderLayer } from "neuroglancer/unstable/sliceview/volume/image_renderlayer.js"
 import type { SliceViewRenderLayer } from "neuroglancer/unstable/sliceview/renderlayer.js"
 
-// import { NehubaPerspectivePanel } from "./nehuba_perspective_panel" //TODO Not ported to the new upstream yet, see `useNehubaPerspective` below
+import { NehubaPerspectivePanel } from "./nehuba_perspective_panel"
 import { Config } from "./config"
 
 export const configSymbol = Symbol("configSymbol")
@@ -60,6 +60,7 @@ function getCommonSliceViewerState(viewer: ViewerUIState) {
 export class NehubaLayout extends RefCounted {
   constructor(public container: DataPanelLayoutContainer, public rootElement: HTMLElement, public viewer: ViewerUIState, crossSections: Borrowed<CrossSectionSpecificationMap>) {
     super();
+    console.log("nehuba layerout")
     crossSections; //shut up compiler, see, I used it
 
     const config: Config = (viewer.display.container as any)[configSymbol];
@@ -98,7 +99,7 @@ export class NehubaLayout extends RefCounted {
         const conf = layoutConfig.useNehubaPerspective;
         //TODO NehubaPerspectivePanel is not ported to the new upstream yet, falling back to plain PerspectivePanel
         perspectivePanel = this.registerDisposer(
-            new PerspectivePanel(display, element, perspectiveViewerState));
+            new NehubaPerspectivePanel(display, element, perspectiveViewerState, config));
 
         // sliceViews.forEach(slice => { (perspectivePanel as NehubaPerspectivePanel).planarSlices.add(slice.addRef()); })
         if (conf.fixedZoomPerspectiveSlices) {
