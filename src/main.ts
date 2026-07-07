@@ -89,10 +89,10 @@ const spec2 = {
   type: "segmentation",
   source: "precomputed://https://neuroglancer.humanbrainproject.eu/precomputed/BigBrainRelease.2015/classif",
   transform: [[1, 0, 0, -70666600], [0, 1, 0, -72910000], [0, 0, 1, -58777700], [0, 0, 0, 1]],
-  segments: [100,200],
+  segments: [],
   segmentColors: {
-    "100": "#ffffff",
-    "200": "#cccccc",
+    "100": "#ff00ff",
+    "200": "#cccc00",
   }
 }
 

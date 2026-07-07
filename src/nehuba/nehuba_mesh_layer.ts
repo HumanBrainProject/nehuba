@@ -1,4 +1,4 @@
-import { ChunkState } from 'neuroglancer/unstable/chunk_manager/base.js';
+import { ChunkPriorityTier, ChunkState } from 'neuroglancer/unstable/chunk_manager/base.js';
 // import {ChunkManager} from 'neuroglancer/unstable/chunk_manager/frontend.js';
 import { VisibleLayerInfo } from 'neuroglancer/unstable/layer/index.js';
 import { PerspectiveViewRenderContext } from 'neuroglancer/unstable/perspective_view/render_layer.js';
@@ -6,9 +6,11 @@ import { ThreeDimensionalRenderLayerAttachmentState, update3dRenderLayerAttachme
 import { forEachVisibleSegment, getObjectKey } from 'neuroglancer/unstable/segmentation_display_state/base.js';
 // import {getObjectColor, SegmentationDisplayState3D} from 'neuroglancer/unstable/segmentation_display_state/frontend.js';
 import { mat4, vec3, vec4, quat } from 'neuroglancer/unstable/util/geom.js';
-import { getObjectId } from 'neuroglancer/unstable/util/object_id.js';
 import { GL } from 'neuroglancer/unstable/webgl/context.js';
-import { ShaderBuilder, ShaderModule, ShaderProgram } from 'neuroglancer/unstable/webgl/shader.js';
+import { ShaderBuilder, ShaderProgram } from 'neuroglancer/unstable/webgl/shader.js';
+import { parameterizedEmitterDependentShaderGetter } from 'neuroglancer/unstable/webgl/dynamic_shader.js';
+import { WatchableValue } from 'neuroglancer/unstable/trackable_value.js';
+import { RefCounted } from 'neuroglancer/unstable/util/disposable.js';
 // import {Uint64} from 'neuroglancer/util/uint64';
 import { Uint64Set } from "neuroglancer/unstable/uint64_set.js"
 
@@ -19,11 +21,52 @@ import { MeshShaderManager, MeshLayer, MeshSource, MeshDisplayState } from "neur
 import { ExtraRenderContext } from "./nehuba_perspective_panel";
 import { VertexPositionFormat } from 'neuroglancer/unstable/mesh/base.js';
 import { PerspectivePanel } from 'neuroglancer/unstable/perspective_view/panel.js';
-import { getObjectColor } from 'neuroglancer/unstable/segmentation_display_state/frontend.js';
+import { forEachVisibleSegmentToDraw, getObjectColor } from 'neuroglancer/unstable/segmentation_display_state/frontend.js';
+
+/**
+ * GLSL helper for decoding octahedron-encoded normals. Copied from Neuroglancer's
+ * `mesh/frontend.ts`, where it is module-private (`glsl_decodeNormalOctahedronSnorm8`)
+ * and therefore not importable.
+ */
+const glsl_decodeNormalOctahedronSnorm8 = `
+highp vec3 decodeNormalOctahedronSnorm8(highp vec2 e) {
+  vec3 v = vec3(e.xy, 1.0 - abs(e.x) - abs(e.y));
+  if (v.z < 0.0) v.xy = (1.0 - abs(v.yx)) * vec2(v.x > 0.0 ? 1.0 : -1.0, v.y > 0.0 ? 1.0 : -1.0);
+  return normalize(v);
+}
+`;
+
+/**
+ * Constant parameters watchable required by `parameterizedEmitterDependentShaderGetter`.
+ * This layer has no dynamic shader parameters (e.g. silhouette rendering), so a single
+ * constant value is sufficient.
+ */
+const noShaderParameters = new WatchableValue<boolean>(false);
 
 export class NehubaMeshShaderManager extends MeshShaderManager {
+  /*
+   * In the current Neuroglancer the base `MeshShaderManager` no longer exposes a
+   * `defineShader` method to override: the shader is defined inline inside `makeGetter`
+   * via `parameterizedEmitterDependentShaderGetter`. We keep a `defineShader` method here
+   * for clarity, but it can no longer call `super.defineShader`, so we reproduce the parts
+   * of the base setup this layer relies on (float32 vertex positions, octahedral normals,
+   * lighting) before adding the nehuba-specific clipping uniforms. It is wired up through
+   * our own `makeGetter` override below.
+   */
   defineShader(builder: ShaderBuilder) {
-    super.defineShader(builder);
+    // --- base MeshShaderManager setup (float32 vertex position format) ---
+    builder.addAttribute('highp vec3', 'aVertexPosition');
+    builder.addVertexCode('highp vec3 getVertexPosition() { return aVertexPosition; }');
+    builder.addAttribute('highp vec2', 'aVertexNormal');
+    builder.addVarying('highp vec4', 'vColor');
+    builder.addUniform('highp vec4', 'uLightDirection');
+    builder.addUniform('highp vec4', 'uColor');
+    builder.addUniform('highp mat3', 'uNormalMatrix');
+    builder.addUniform('highp mat4', 'uModelViewProjection');
+    builder.addUniform('highp uint', 'uPickID');
+    builder.addVertexCode(glsl_decodeNormalOctahedronSnorm8);
+
+    // --- nehuba-specific clipping additions ---
     builder.addUniform('highp mat4', 'uModelMatrix');
     builder.addVarying('highp vec4', 'vNavPos');
     builder.addUniform('highp mat4', 'uNavState');
@@ -90,16 +133,21 @@ if (vNavPos.x >= 0.0 && vNavPos.y >= 0.0 && vNavPos.z >= 0.0) {
   setBackFaceColor(gl: GL, shader: ShaderProgram, color: vec4) {
     gl.uniform4fv(shader.uniform('uBackFaceColor'), color);
   }
-  getShader(gl: GL, emitter: ShaderModule) {
-    return gl.memoize.get(
-      `mesh/NehubaMeshShaderManager:${getObjectId(emitter)}/` +
-      `${this.fragmentRelativeVertices}/${this.vertexPositionFormat}`,
-      () => {
-        let builder = new ShaderBuilder(gl);
-        builder.require(emitter);
+  /*
+   * Overrides the base `makeGetter` so the emitter-dependent shader is built with our
+   * custom `defineShader` (adding the clipping uniforms) rather than the base one. The
+   * base implementation is otherwise identical; we drop the silhouette-rendering parameter
+   * since this layer doesn't use it.
+   */
+  makeGetter(layer: RefCounted & { gl: GL; displayState: MeshDisplayState }) {
+    return parameterizedEmitterDependentShaderGetter(layer, layer.gl, {
+      memoizeKey:
+        `mesh/NehubaMeshShaderManager/${this.fragmentRelativeVertices}/${this.vertexPositionFormat}`,
+      parameters: noShaderParameters,
+      defineShader: (builder) => {
         this.defineShader(builder);
-        return builder.build();
-      });
+      },
+    });
   }
 }
 
@@ -110,8 +158,6 @@ export class NehubaMeshLayer extends MeshLayer {
     super(chunkManager, source, displayState);
     this.meshShaderManager = new NehubaMeshShaderManager(/*fragmentRelativeVertices=*/ false, VertexPositionFormat.float32);
     this.getShader_ = this.meshShaderManager.makeGetter(this)
-    console.log("nehuba mesh layer!")
-    debugger
   }
 
   draw(
@@ -121,30 +167,25 @@ export class NehubaMeshLayer extends MeshLayer {
       ThreeDimensionalRenderLayerAttachmentState
     >,
   ) { //What if called without extra? (by normal ng layer)
-    debugger
     if (!renderContext.emitColor && renderContext.alreadyEmittedPickID) {
       // No need for a separate pick ID pass.
       return;
     }
     const { gl, displayState, /*meshShaderManager*/ } = this;
-    const meshShaderManager = this.meshShaderManager as NehubaMeshShaderManager;
+    const meshShaderManager = this.meshShaderManager as unknown as NehubaMeshShaderManager;
     const alpha = Math.min(1.0, displayState.objectAlpha.value);
-    
+
     if (alpha <= 0.0) {
       // Skip drawing.
       return;
     }
-    console.log('postalpha')
-    
+
     const modelMatrix = update3dRenderLayerAttachment(displayState.transform.value, renderContext.projectionParameters.displayDimensionRenderInfo, attachment);
-    debugger
     if (modelMatrix === undefined) {
       return;
     }
-    console.log('before shader')
     const { shader } = this.getShader_(renderContext.emitter);
     if (!shader) return
-    console.log("shader?!?!")
     shader.bind();
     meshShaderManager.beginLayer(gl, shader, renderContext, this.displayState);
 
@@ -153,8 +194,8 @@ export class NehubaMeshLayer extends MeshLayer {
     }
     const valuesForClipping = getValuesForClipping(renderContext.extra);
     meshShaderManager.setValuesForClipping(gl, shader, valuesForClipping);
-    const conf = (renderContext.extra && renderContext.extra.config.layout!.useNehubaPerspective!.mesh); //Is it undefined?
-    const surfaceParcellation = conf && conf.surfaceParcellation;
+    const conf = renderContext?.extra?.config?.layout?.useNehubaPerspective?.mesh
+    const surfaceParcellation = conf?.surfaceParcellation;
 
     meshShaderManager.beginModel(gl, shader, renderContext, modelMatrix);
 
@@ -162,71 +203,60 @@ export class NehubaMeshLayer extends MeshLayer {
     const manifestChunks = this.source.chunks;
 
     let totalChunks = 0, presentChunks = 0;
-    const { renderScaleHistogram } = this.displayState;
+    // const { renderScaleHistogram } = this.displayState;
     const fragmentChunks = this.source.fragmentSource.chunks;
 
-    const { visibleSegments } = displayState
-    let visibleMeshes: Uint64Set;
-    if (isVisibleSegmentsWrapper(visibleSegments)) {
-      if (!surfaceParcellation && !renderContext.extra.showSliceViewsCheckboxValue) {
-        visibleMeshes = visibleSegments.size === 0 ? visibleSegments.getLoadedMeshes() : visibleSegments;
-      } else {
-        visibleMeshes = visibleSegments.getLoadedMeshes()
-      };
-    } else {
-      visibleMeshes = visibleSegments
-    };
-    const displayStateProxy = new Proxy<SegmentationDisplayState3D>(displayState, {
-      get: function (target: any, p: PropertyKey) {
-        if (p === 'visibleSegments') return visibleMeshes;
-        const res = target[p];
-        if (typeof res === 'function') return res.bind(target);
-        else return res;
-      }
-    });
+    const _visibleSegments = displayState?.segmentationGroupState?.value?.visibleSegments
+    let uint64set: Uint64Set|null = null
+    if (isVisibleSegmentsWrapper(_visibleSegments)) {
+      uint64set = _visibleSegments.getLoadedMeshes()
+    }
 
-    forEachVisibleSegment(displayStateProxy, (objectId, rootObjectId) => {
-      const key = getObjectKey(objectId);
-      const manifestChunk = manifestChunks.get(key);
-      if (manifestChunk === undefined) return;
-      if (renderContext.emitColor) {
-        meshShaderManager.setColor(gl, shader, getObjectColor(displayState, rootObjectId, alpha));
-      }
-      if (renderContext.emitPickID) {
-        meshShaderManager.setPickID(gl, shader, pickIDs.registerUint64(this, objectId));
-      }
-      if (renderContext.extra.showSliceViewsCheckboxValue && isVisibleSegmentsWrapper(visibleSegments) && !surfaceParcellation) {
-        if (visibleSegments.has(rootObjectId)) meshShaderManager.setValuesForClipping(gl, shader, NoClipping);
-        else meshShaderManager.setValuesForClipping(gl, shader, valuesForClipping);
-      }
-      totalChunks += manifestChunk.fragmentIds.length;
+    forEachVisibleSegmentToDraw(
+      displayState,
+      this,
+      renderContext.emitColor,
+      renderContext.emitPickID ? renderContext.pickIDs : undefined,
+      (objectId: any, color: any, pickIndex: any) => {
+        if (!!uint64set && !uint64set.has(objectId)) {
+          return
+        }
+        const key = getObjectKey(objectId);
+        const manifestChunk = manifestChunks.get(key);
+        ++totalChunks;
+        if (manifestChunk === undefined) return;
+        ++presentChunks;
+        if (renderContext.emitColor) {
+          meshShaderManager.setColor(gl, shader, color!);
+        }
+        if (renderContext.emitPickID) {
+          meshShaderManager.setPickID(gl, shader, pickIndex!);
+        }
+        totalChunks += manifestChunk.fragmentIds.length;
 
-      for (const fragmentId of manifestChunk.fragmentIds) {
-        const fragment = fragmentChunks.get(`${key}/${fragmentId}`);
-        if (fragment !== undefined && fragment.state === ChunkState.GPU_MEMORY) {
-          meshShaderManager.drawFragment(gl, shader, fragment);
-          ++presentChunks;
+        for (const fragmentId of manifestChunk.fragmentIds) {
+          
+          // if (renderContext.extra.showSliceViewsCheckboxValue && isVisibleSegmentsWrapper(visibleSegments) && !surfaceParcellation) {
+          //   if (visibleSegments.has(rootObjectId)) meshShaderManager.setValuesForClipping(gl, shader, NoClipping);
+          //   else meshShaderManager.setValuesForClipping(gl, shader, valuesForClipping);
+          // }
+          const { key: fragmentKey } = this.source.getFragmentKey(
+            key,
+            fragmentId,
+          );
+          const fragment = fragmentChunks.get(fragmentKey);
+          if (
+            fragment !== undefined &&
+            fragment.state === ChunkState.GPU_MEMORY
+          ) {
+            meshShaderManager.drawFragment(gl, shader, fragment);
+            ++presentChunks;
+          }
         }
       }
-    });
+    )
 
-    if (renderContext.emitColor) {
-      renderScaleHistogram.begin(
-        this.chunkManager.chunkQueueManager.frameNumberCounter.frameNumber);
-      renderScaleHistogram.add(
-        Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, presentChunks,
-        totalChunks - presentChunks);
-    }
     meshShaderManager.endLayer(gl, shader);
-
-    let objectChunks = this.source.fragmentSource.chunks;
-    renderContext.extra.meshRendered = objectChunks.size > 0;
-    if (renderContext.extra.meshesLoaded === -1) renderContext.extra.meshesLoaded = 0;
-    renderContext.extra.meshesLoaded += objectChunks.size;
-    if (renderContext.extra.meshFragmentsLoaded === -1) renderContext.extra.meshFragmentsLoaded = 0;
-    renderContext.extra.meshFragmentsLoaded += presentChunks;
-    const objectKeys = Array.from(objectChunks.keys())
-    renderContext.extra.lastMeshId = objectKeys[objectKeys.length - 1];
   }
 }
 
@@ -246,9 +276,7 @@ export function getValuesForClipping(extra: ExtraRenderContext): ValuesForClippi
   if (!extra.showSliceViewsCheckboxValue) {
     return NoClipping;
   }
-  console.log('clipping?')
-  const v = extra?.config?.layout?.useNehubaPerspective?.centerToOrigin
-  debugger
+
   const centerToOrigin = (extra && extra.config.layout!.useNehubaPerspective!.centerToOrigin);
   const conf = (extra && extra.config.layout!.useNehubaPerspective!.mesh); //Is it undefined?
 
@@ -315,64 +343,21 @@ export function isVisibleSegmentsWrapper(x: unknown): x is VisibleSegmentsWrappe
  */
 export function createVisibleSegmentsWrapper(wrapped: Uint64Set): VisibleSegmentsWrapper {
 
-  const localHashTable = new HashSetUint64()
+  const localHashTable = new Uint64Set()
   const overrides: Record<PropertyKey, unknown> = {
 
-    getLoadedMeshes: () => wrapped,
+    getLoadedMeshes: () => localHashTable,
 
     setMeshesToLoad: (meshes: number[]) => {
-      wrapped.clear();
-      //TODO Find a way to batch set all at once without triggering (twice!) changed.dispatch
-      const meshesBigInt = meshes.map(v => BigInt(v));
-      wrapped.add(meshesBigInt);
+      wrapped.clear()
+      localHashTable.clear()
 
-      // Bad workaround needed to trick new SegmentSetWidget, which uses dispatched value to update itself
-      // TODO Remove when nehuba own widgets are available
+      const meshesBigInt = meshes.map(v => BigInt(v));
+      localHashTable.add(meshesBigInt)
+      wrapped.add(meshesBigInt)
+
       wrapped.changed.dispatch(meshesBigInt, true);
     },
-    has(x: bigint){
-      return localHashTable.has(x)
-    },
-    add(x: bigint | bigint[] | BigUint64Array){
-      const tmp = typeof x === "bigint" ? [x] : x
-      let changed = false
-      for (const v of tmp) {
-        if (localHashTable.add(v)) {
-          changed = true
-        }
-      }
-      if (changed) {
-        wrapped.changed.dispatch(x, true)
-      }
-    },
-    delete(x: bigint | bigint[] | BigUint64Array) {
-      const tmp = typeof x === "bigint" ? [x] : x
-      let changed = false
-      for (const v of tmp) {
-        if (localHashTable.delete(v)) {
-          changed = true
-        }
-      }
-      if (changed) {
-        wrapped.changed.dispatch(x, false)
-      }
-    },
-    keys(){
-      return localHashTable.keys()
-    },
-    get hashTable(){
-      return localHashTable
-    },
-    get size(){
-      return localHashTable.size
-    },
-    toJSON() {
-      let result = new Array<string>();
-      for (let id of localHashTable) {
-        result.push(id.toString());
-      }
-      return result;
-    }  
   };
 
   const proxy = new Proxy(wrapped, {

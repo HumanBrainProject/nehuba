@@ -37,12 +37,12 @@ export function patchNeuroglancer(config: Config) {
 function useNehubaMeshInSegmentationLayer(enableMeshLoadingControl?: boolean) {
 
 	SegmentationUserLayer.prototype.activateDataSubsources = function (this: SegmentationUserLayer, subsources: Iterable<LoadedDataSubsource>) {
-		// if (enableMeshLoadingControl) {
-		// 	const segmentationGroupState = this.displayState.segmentationGroupState;
-		// 	if (!isVisibleSegmentsWrapper(segmentationGroupState.value.visibleSegments)) {
-		// 		segmentationGroupState.value.visibleSegments = createVisibleSegmentsWrapper(segmentationGroupState.value.visibleSegments);
-		// 	}
-		// };
+		if (enableMeshLoadingControl) {
+			const segmentationGroupState = this.displayState.segmentationGroupState;
+			if (!isVisibleSegmentsWrapper(segmentationGroupState.value.visibleSegments)) {
+				segmentationGroupState.value.visibleSegments = createVisibleSegmentsWrapper(segmentationGroupState.value.visibleSegments);
+			}
+		};
 
 
 		const updatedSegmentPropertyMaps: SegmentPropertyMap[] = [];

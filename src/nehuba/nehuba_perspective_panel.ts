@@ -534,6 +534,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     let {lightDirection, ambientLighting, directionalLighting, projectionParameters: {viewProjectionMat}} = renderContext;
 
     const showSliceViews = this.viewer.showSliceViews.value;
+    console.log("draw slice view", conf.hideAllSlices, conf.removePerspectiveSlicesBackground)
     if (!conf.hideAllSlices) {
       const removeBgConfig = conf.removePerspectiveSlicesBackground;
       const render = removeBgConfig ? nehubaSliceViewRenderHelper : sliceViewRenderHelper;
