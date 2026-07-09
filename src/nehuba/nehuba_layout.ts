@@ -19,6 +19,8 @@ import type { SliceViewRenderLayer } from "neuroglancer/unstable/sliceview/rende
 
 import { NehubaPerspectivePanel } from "./nehuba_perspective_panel"
 import { Config } from "./config"
+import { DisplayPose, NavigationState, OrientationState, TrackableCrossSectionZoom } from "neuroglancer/unstable/navigation_state.js"
+import { SliceView } from "neuroglancer/unstable/sliceview/frontend.js"
 
 export const configSymbol = Symbol("configSymbol")
 export const sliceQuat = Symbol('SliceQuat');
@@ -60,7 +62,6 @@ function getCommonSliceViewerState(viewer: ViewerUIState) {
 export class NehubaLayout extends RefCounted {
   constructor(public container: DataPanelLayoutContainer, public rootElement: HTMLElement, public viewer: ViewerUIState, crossSections: Borrowed<CrossSectionSpecificationMap>) {
     super();
-    console.log("nehuba layerout")
     crossSections; //shut up compiler, see, I used it
 
     const config: Config = (viewer.display.container as any)[configSymbol];
@@ -72,7 +73,6 @@ export class NehubaLayout extends RefCounted {
       dispatchRenderEvents(disableFixedPointInZoom(disableFixedPointInRotation(slice, config), config));
       return slice;
     }
-
     if (!layoutConfig.views) {
       layoutConfig.views = 'hbp-neuro'; // TODO should use neuroglaner quats by default
       // = { //Default neuroglancer quats
@@ -90,43 +90,63 @@ export class NehubaLayout extends RefCounted {
     }
     const views = layoutConfig.views;
     const quats = [views.slice1, views.slice2, views.slice3];
-    let sliceViews = quats.map(q => { return makeSliceViewNhb(viewer, q); });
+    let sliceViews = quats.map(q => makeSliceViewNhb(viewer, q))
 
     let perspectivePanel: PerspectivePanel|undefined;
     const makePerspective: L.Handler = element => {
-
-      if (layoutConfig.useNehubaPerspective) {
-        const conf = layoutConfig.useNehubaPerspective;
-        //TODO NehubaPerspectivePanel is not ported to the new upstream yet, falling back to plain PerspectivePanel
-        perspectivePanel = this.registerDisposer(
-            new NehubaPerspectivePanel(display, element, perspectiveViewerState, config));
-
-        // sliceViews.forEach(slice => { (perspectivePanel as NehubaPerspectivePanel).planarSlices.add(slice.addRef()); })
-        if (conf.fixedZoomPerspectiveSlices) {
-          const cnfg = conf.fixedZoomPerspectiveSlices;
-          makeFixedZoomSlicesFromSlices(sliceViews, viewer, cnfg.sliceZoom).forEach(slice => {
-            const m = cnfg.sliceViewportSizeMultiplier;
-            m; //TODO SliceView.setViewportSize() is gone in the new upstream, viewport size is now driven by the panel via projectionParameters
-            // slice.setViewportSize(cnfg.sliceViewportWidth * m, cnfg.sliceViewportHeight * m);
-            // The correct way to fix #1 would be:
-            //    perspectivePanel!.registerDisposer(slice.visibility.add(perspectivePanel!.visibility));
-            // here. But to support ilastik use-case it is done in NehubaPerspectivePanel.draw(), so that slices don't request their chunks when "Slices" checkbox is unchecked
-            perspectivePanel!.sliceViews.set(slice, false);
-          })
-        } else {
-          for (let sliceView of sliceViews) {
-            perspectivePanel.sliceViews.set(sliceView.addRef(), false);
-          }
+      if (!layoutConfig.useNehubaPerspective) {
+        const perspectivePanel = this.registerDisposer(
+          new PerspectivePanel(display, element, perspectiveViewerState)
+        )
+        for (let sliceView of sliceViews) {
+          perspectivePanel.sliceViews.set(sliceView.addRef(), false)
         }
-        // addUnconditionalSliceViews(viewer, perspectivePanel, crossSections); //not exported in data_panel_layout //TODO Submit PR to export them in the follow-up of PR #44
-      } else {
-        perspectivePanel = this.registerDisposer(
-            new PerspectivePanel(display, element, perspectiveViewerState));
+        return
+      }
+
+      const conf = layoutConfig.useNehubaPerspective;
+      //TODO NehubaPerspectivePanel is not ported to the new upstream yet, falling back to plain PerspectivePanel
+      const perspectivePanel = this.registerDisposer(
+          new NehubaPerspectivePanel(display, element, perspectiveViewerState, config));
+
+      for (const sv of sliceViews){
+        perspectivePanel.planarSlices.add(
+          sv.addRef()
+        )
+      }
+
+      if (!conf.fixedZoomPerspectiveSlices) {
         for (let sliceView of sliceViews) {
           perspectivePanel.sliceViews.set(sliceView.addRef(), false);
         }
-        // addUnconditionalSliceViews(viewer, perspectivePanel, crossSections); //not exported in data_panel_layout //TODO Submit PR to export them in the follow-up of PR #44
+        return
       }
+
+      const cnfg = conf.fixedZoomPerspectiveSlices;
+      makeFixedZoomSlicesFromSlices(sliceViews, viewer, cnfg.sliceZoom).forEach(slice => {
+        const m = cnfg.sliceViewportSizeMultiplier;
+        // These fixed-zoom slices are not attached to any SliceViewPanel, so nothing
+        // else sizes their projectionParameters. Upstream removed SliceView.setViewportSize(),
+        // so replicate makeSliceViewFromSpecification and drive the viewport explicitly.
+        const width = cnfg.sliceViewportWidth * m;
+        const height = cnfg.sliceViewportHeight * m;
+        slice.projectionParameters.setViewport({
+          width,
+          height,
+          logicalWidth: width,
+          logicalHeight: height,
+          visibleLeftFraction: 0,
+          visibleTopFraction: 0,
+          visibleWidthFraction: 1,
+          visibleHeightFraction: 1,
+        });
+        // The correct way to fix #1 would be:
+        //    perspectivePanel!.registerDisposer(slice.visibility.add(perspectivePanel!.visibility));
+        // here. But to support ilastik use-case it is done in NehubaPerspectivePanel.draw(), so that slices don't request their chunks when "Slices" checkbox is unchecked
+        perspectivePanel!.sliceViews.set(slice, false);
+      })
+
+
     };
 
     let {display} = viewer;
@@ -275,9 +295,29 @@ function getNumberOfMissingChunks(sliceView: SliceView, layerSelector?: (layer: 
  * This function is an adapted copy of makeSliceView from neuroglancer/data_panel_layouts.ts
  */
 function makeSliceViewNhb(viewerState: SliceViewViewerState, baseToSelf?: quat, customZoom?: number) {
-  customZoom; //TODO custom zoom (fixedZoomPerspectiveSlices) not supported yet with the new upstream makeSliceView
-  const slice = makeSliceView(viewerState, baseToSelf);
-  (slice as any)[sliceQuat] = baseToSelf || quat.create();
+  let zoom = customZoom && viewerState.navigationState.registerDisposer(new TrackableCrossSectionZoom(viewerState.navigationState.displayDimensionRenderInfo.addRef()));
+  if (zoom && customZoom) zoom.legacyValue = customZoom;
+  let navigationState: NavigationState;
+  if (baseToSelf === undefined) {
+    navigationState = viewerState.navigationState;
+  } else {
+    navigationState = new NavigationState(
+        new DisplayPose(
+            viewerState.navigationState.pose.position.addRef(),
+            viewerState.navigationState.pose.displayDimensionRenderInfo.addRef(),
+            OrientationState.makeRelative(
+                viewerState.navigationState.pose.orientation, baseToSelf)),
+        zoom || viewerState.navigationState.zoomFactor,
+      viewerState.navigationState.depthRange.addRef(),
+    );
+  }
+  const slice = new SliceView(
+    viewerState.chunkManager,
+    viewerState.layerManager,
+    navigationState,
+    viewerState.wireFrame,
+  );
+  (<any>slice)[sliceQuat] = baseToSelf || quat.create();
   return slice;
 }
 

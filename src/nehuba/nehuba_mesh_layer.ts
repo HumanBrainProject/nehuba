@@ -1,27 +1,23 @@
-import { ChunkPriorityTier, ChunkState } from 'neuroglancer/unstable/chunk_manager/base.js';
-// import {ChunkManager} from 'neuroglancer/unstable/chunk_manager/frontend.js';
+import { ChunkState } from 'neuroglancer/unstable/chunk_manager/base.js';
 import { VisibleLayerInfo } from 'neuroglancer/unstable/layer/index.js';
 import { PerspectiveViewRenderContext } from 'neuroglancer/unstable/perspective_view/render_layer.js';
 import { ThreeDimensionalRenderLayerAttachmentState, update3dRenderLayerAttachment } from 'neuroglancer/unstable/renderlayer.js';
-import { forEachVisibleSegment, getObjectKey } from 'neuroglancer/unstable/segmentation_display_state/base.js';
-// import {getObjectColor, SegmentationDisplayState3D} from 'neuroglancer/unstable/segmentation_display_state/frontend.js';
+import { getObjectKey } from 'neuroglancer/unstable/segmentation_display_state/base.js';
 import { mat4, vec3, vec4, quat } from 'neuroglancer/unstable/util/geom.js';
 import { GL } from 'neuroglancer/unstable/webgl/context.js';
 import { ShaderBuilder, ShaderProgram } from 'neuroglancer/unstable/webgl/shader.js';
 import { parameterizedEmitterDependentShaderGetter } from 'neuroglancer/unstable/webgl/dynamic_shader.js';
 import { WatchableValue } from 'neuroglancer/unstable/trackable_value.js';
 import { RefCounted } from 'neuroglancer/unstable/util/disposable.js';
-// import {Uint64} from 'neuroglancer/util/uint64';
 import { Uint64Set } from "neuroglancer/unstable/uint64_set.js"
-
-import { HashSetUint64 } from 'neuroglancer/unstable/gpu_hash/hash_table.js';
 
 import { MeshShaderManager, MeshLayer, MeshSource, MeshDisplayState } from "neuroglancer/unstable/mesh/frontend.js"
 
 import { ExtraRenderContext } from "./nehuba_perspective_panel";
 import { VertexPositionFormat } from 'neuroglancer/unstable/mesh/base.js';
 import { PerspectivePanel } from 'neuroglancer/unstable/perspective_view/panel.js';
-import { forEachVisibleSegmentToDraw, getObjectColor } from 'neuroglancer/unstable/segmentation_display_state/frontend.js';
+import { forEachVisibleSegmentToDraw } from 'neuroglancer/unstable/segmentation_display_state/frontend.js';
+import { Config } from './config';
 
 /**
  * GLSL helper for decoding octahedron-encoded normals. Copied from Neuroglancer's
@@ -44,6 +40,14 @@ highp vec3 decodeNormalOctahedronSnorm8(highp vec2 e) {
 const noShaderParameters = new WatchableValue<boolean>(false);
 
 export class NehubaMeshShaderManager extends MeshShaderManager {
+
+  constructor(
+    public fragmentRelativeVertices: boolean,
+    public vertexPositionFormat: VertexPositionFormat,
+    public conf?: Config
+  ) {
+    super(fragmentRelativeVertices, vertexPositionFormat)
+  }
   /*
    * In the current Neuroglancer the base `MeshShaderManager` no longer exposes a
    * `defineShader` method to override: the shader is defined inline inside `makeGetter`
@@ -104,8 +108,28 @@ if (uColor.a < 1.0) {
 }
 		`; //vBackFaceColor = vec4(lightingFactor * uBackFaceColor.rgb, uColor.a);
     builder.setVertexMain(vertexMain);
+    const meshOcclusionConds: string[] = []
+    const hideSlices = this.conf?.layout?.useNehubaPerspective?.hideSlices || []
+    if (!hideSlices.includes("slice2")) {
+      meshOcclusionConds.push(`vNavPos.x >= 0.0`)
+    }
+    if (!hideSlices.includes("slice1")) {
+      meshOcclusionConds.push(`vNavPos.y >= 0.0`)
+    }
+    if (!hideSlices.includes("slice3")) {
+      meshOcclusionConds.push(`vNavPos.z >= 0.0`)
+    }
+    if (meshOcclusionConds.length === 0) {
+      console.error(`meshOcclusionConds.length === 0. Did you set hideSlices correctly?`)
+      builder.setFragmentMain(`
+if (gl_FrontFacing) emit(vColor, uPickID);
+else emit(vBackFaceColor, uPickID);
+      `)
+      return
+    }
+    
     builder.setFragmentMain(`
-if (vNavPos.x >= 0.0 && vNavPos.y >= 0.0 && vNavPos.z >= 0.0) {
+if (${meshOcclusionConds.join(" && ")}) {
   discard;
 } else {
   if (gl_FrontFacing) emit(vColor, uPickID);
@@ -128,6 +152,9 @@ if (vNavPos.x >= 0.0 && vNavPos.y >= 0.0 && vNavPos.z >= 0.0) {
     gl.uniformMatrix4fv(shader.uniform('uNavState'), false, navMat);
   }
   setOctant(gl: GL, shader: ShaderProgram, octant: vec4) {
+    if (this.conf?.layout?.useNehubaPerspective?.lockMeshOcclusion) {
+      return
+    }
     gl.uniform4fv(shader.uniform('uOctant'), octant);
   }
   setBackFaceColor(gl: GL, shader: ShaderProgram, color: vec4) {
@@ -173,6 +200,7 @@ export class NehubaMeshLayer extends MeshLayer {
     }
     const { gl, displayState, /*meshShaderManager*/ } = this;
     const meshShaderManager = this.meshShaderManager as unknown as NehubaMeshShaderManager;
+    meshShaderManager.conf = renderContext.extra.config
     const alpha = Math.min(1.0, displayState.objectAlpha.value);
 
     if (alpha <= 0.0) {
@@ -194,12 +222,9 @@ export class NehubaMeshLayer extends MeshLayer {
     }
     const valuesForClipping = getValuesForClipping(renderContext.extra);
     meshShaderManager.setValuesForClipping(gl, shader, valuesForClipping);
-    const conf = renderContext?.extra?.config?.layout?.useNehubaPerspective?.mesh
-    const surfaceParcellation = conf?.surfaceParcellation;
 
     meshShaderManager.beginModel(gl, shader, renderContext, modelMatrix);
 
-    let { pickIDs } = renderContext;
     const manifestChunks = this.source.chunks;
 
     let totalChunks = 0, presentChunks = 0;
@@ -207,7 +232,7 @@ export class NehubaMeshLayer extends MeshLayer {
     const fragmentChunks = this.source.fragmentSource.chunks;
 
     const _visibleSegments = displayState?.segmentationGroupState?.value?.visibleSegments
-    let uint64set: Uint64Set|null = null
+    let uint64set: Uint64Set | null = null
     if (isVisibleSegmentsWrapper(_visibleSegments)) {
       uint64set = _visibleSegments.getLoadedMeshes()
     }

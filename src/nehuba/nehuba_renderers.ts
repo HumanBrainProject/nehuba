@@ -70,8 +70,15 @@ gl_Position = uProjectionMatrix * aVertexPosition;
   }
 
   draw(
-      texture: WebGLTexture|null, projectionMatrix: mat4, colorFactor: vec4, backgroundColor: vec4,
-      xStart: number, yStart: number, xEnd: number, yEnd: number) {
+      texture: WebGLTexture|null,
+      projectionMatrix: mat4,
+      colorFactor: vec4,
+      backgroundColor: vec4,
+      xStart: number,
+      yStart: number,
+      xEnd: number,
+      yEnd: number
+  ) {
     let {gl, shader, textureCoordinateAdjustment} = this;
     textureCoordinateAdjustment[0] = xStart;
     textureCoordinateAdjustment[1] = yStart;
@@ -80,6 +87,7 @@ gl_Position = uProjectionMatrix * aVertexPosition;
     shader.bind();
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.disable(WebGL2RenderingContext.BLEND);
     gl.uniformMatrix4fv(shader.uniform('uProjectionMatrix'), false, projectionMatrix);
     gl.uniform4fv(shader.uniform('uColorFactor'), colorFactor);
     gl.uniform4fv(shader.uniform('uBackgroundColor'), backgroundColor);

@@ -187,6 +187,9 @@ export interface Config {
 				/** If meshes attached to segmentation layer are just parts of cortical surface parcellation instead of being full volumetric segment meshes
 				 *  ("patch blanket" mode used for JuBrain), then all of them should be displayed at all times and clipped when front octant is removed, 
 				 *  regardless of selected segments and "Slices" checkbox. Toggleable (needs redraw). */
+				/**
+				 * @deprecated no longer has an effect
+				 */
 				surfaceParcellation?: boolean
 			}
 			/** Center perspective view at the center of the brain instead of intersection point of slice views. Toggleable (needs redraw).*/
@@ -202,11 +205,13 @@ export interface Config {
 				cutOff?: number
 				/** Default is vec4.fromValues(1.0, 0.0, 0.0, 0.2) if not specified. Toggleable (needs redraw). */
 				color?: vec4
+				min?: number
 			}
 			/** Don't draw slices in the perspective view. Toggleable (needs redraw).*/
 			hideAllSlices?: boolean //TODO This setting make no sense and should be removed. Provided only for the sake of completeness. Move to dev or remove
 			/** Don't draw specified slice views in the prespective view. Toggleable (needs redraw).*/
 			hideSlices?: Array<'slice1' | 'slice2' | 'slice3'>
+			lockMeshOcclusion?: boolean
 			/** For whatever reason, it takes quite some time in neuroglancer for the mesh to show up. This should be investigated and fixed,
 			 *  but until then here is an option to block the display of perspective view until the mesh is ready. Otherwise the user will see just
 			 *  perpendicular slices, which looks not nice and should be hidden from the user. Toggleable (needs redraw).*/

@@ -1,19 +1,21 @@
 import { NavigationState } from "neuroglancer/unstable/navigation_state.js"
-import type { DisplayContext } from 'neuroglancer/unstable/display_context.js';
+import { applyRenderViewportToProjectionMatrix, type DisplayContext } from 'neuroglancer/unstable/display_context.js';
 import type { PerspectiveViewRenderContext } from 'neuroglancer/unstable/perspective_view/render_layer.js';
 import type { FramePickingData } from 'neuroglancer/unstable/rendered_data_panel.js';
 import { kAxes, mat4, vec3, vec4, quat } from 'neuroglancer/unstable/util/geom.js';
 import { PerspectivePanel, PerspectiveViewerState, perspectivePanelEmit, OffscreenTextures, perspectivePanelEmitOIT, maxProjectionEmit } from "neuroglancer/unstable/perspective_view/panel.js";
-import type { ProjectionParameters } from 'neuroglancer/unstable/projection_parameters.js';
+import { updateProjectionParametersFromInverseViewAndProjection, type ProjectionParameters } from 'neuroglancer/unstable/projection_parameters.js';
 
 import { Config, SliceViewsConfig } from "./config";
 import { sliceQuat } from "./nehuba_layout";
 import { WatchableVisibilityPriority } from 'neuroglancer/unstable/visibility_priority/frontend.js';
 import { MultipleScaleBarTextures } from "neuroglancer/unstable/widget/scale_bar.js";
+import { AxesLineHelper, computeAxisLineMatrix } from "neuroglancer/unstable/axes_lines.js"
 import { makeSliceView } from 'neuroglancer/unstable/data_panel_layout.js';
 import { isProjectionLayer } from 'neuroglancer/unstable/volume_rendering/trackable_volume_rendering_mode.js';
 import { VolumeRenderingRenderLayer } from 'neuroglancer/unstable/volume_rendering/volume_render_layer.js';
 import { NehubaSliceViewRenderHelper, TransparentPlaneRenderHelper } from "./nehuba_renderers";
+import { DerivedProjectionParameters } from "neuroglancer/unstable/renderlayer.js";
 
 
 export interface ExtraRenderContext {
@@ -41,6 +43,9 @@ enum TransparentRenderingState {
   VOLUME_RENDERING = 1,
   MAX_PROJECTION = 2,
 }
+
+const tempVec3 = vec3.create()
+const tempMat = mat4.create()
 
 export const perspectiveRenderEventType = 'perpspectiveRenderEvent';
 export interface PerspectiveRenderEventDetail {
@@ -75,14 +80,76 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     this.registerDisposer(TransparentPlaneRenderHelper.get(this.gl, perspectivePanelEmit));
   scaleBars_ = this.registerDisposer(new MultipleScaleBarTextures(this.gl));
 
+  axesProjectionParam: DerivedProjectionParameters
   constructor(context: DisplayContext, element: HTMLElement, viewer: PerspectiveViewerState, private config: Config) {
     super(context, element, viewer);
+    console.log("new nehuba perspective???")
 
     const removeBgConfig = config.layout!.useNehubaPerspective!.removePerspectiveSlicesBackground;
     const mode = (removeBgConfig && removeBgConfig.mode) || 'none';
     this.nehubaSliceViewRenderHelper = this.registerDisposer(NehubaSliceViewRenderHelper.get(this.gl, perspectivePanelEmit/*sliceViewPanelEmitColor*/, mode));
 
     this.registerDisposer(this.visibility.changed.add(() => Array.from(this.sliceViews.keys()).forEach(slice => slice.visibility.value = this.visibility.value)));
+
+    this.axesProjectionParam = this.registerDisposer(
+      new DerivedProjectionParameters({
+        navigationState: this.navigationState,
+        
+        update: (out: ProjectionParameters, navigationState) => {
+          const { invViewMatrix, projectionMat, logicalWidth, logicalHeight } =
+            out;
+          const widthOverHeight = logicalWidth / logicalHeight;
+          const fovy = Math.PI / 4.0;
+          let { relativeDepthRange } = navigationState;
+          const baseZoomFactor = navigationState.zoomFactor.value;
+          let zoomFactor = baseZoomFactor / 2;
+          if (this.viewer.orthographicProjection.value) {
+            // Pick orthographic projection to match perspective projection at plane parallel to image
+            // plane containing the center position.
+            const nearBound = Math.max(0.1, 1 - relativeDepthRange);
+            const farBound = 1 + relativeDepthRange;
+            mat4.ortho(
+              projectionMat,
+              -widthOverHeight,
+              widthOverHeight,
+              -1,
+              1,
+              nearBound,
+              farBound,
+            );
+          } else {
+            const f = 1.0 / Math.tan(fovy / 2);
+            relativeDepthRange /= f;
+            const nearBound = Math.max(0.1, 1 - relativeDepthRange);
+            const farBound = 1 + relativeDepthRange;
+            zoomFactor *= f;
+            mat4.perspective(
+              projectionMat,
+              fovy,
+              widthOverHeight,
+              nearBound,
+              farBound,
+            );
+          }
+          applyRenderViewportToProjectionMatrix(out, projectionMat);
+          navigationState.pose.toMat4(invViewMatrix, zoomFactor);
+          mat4.scale(
+            invViewMatrix,
+            invViewMatrix,
+            vec3.set(tempVec3, 1, -1, -1),
+          );
+          mat4.translate(invViewMatrix, invViewMatrix, kAxes[2]);
+          updateProjectionParametersFromInverseViewAndProjection(out);
+        },
+      })
+    )
+  }
+
+  // DisplayContext.draw() sorts all panels by `drawOrder` (higher == later) and
+  // paints them into the single shared WebGL canvas in that order. Returning a large
+  // value guarantees the perspective panel is the last thing painted each frame.
+  get drawOrder() {
+    return 1000;
   }
 
   disposed() {
@@ -112,6 +179,10 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     const invViewProjectionMat = mat4.create();
     mat4.invert(invViewProjectionMat, viewProjectionMat);
     return { ...pp, viewProjectionMat, invViewProjectionMat } as ProjectionParameters;
+  }
+
+  protected drawAxisLines(): void {
+    return
   }
 
   drawWithPicking(pickingData: FramePickingData): boolean {
@@ -534,7 +605,6 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     let {lightDirection, ambientLighting, directionalLighting, projectionParameters: {viewProjectionMat}} = renderContext;
 
     const showSliceViews = this.viewer.showSliceViews.value;
-    console.log("draw slice view", conf.hideAllSlices, conf.removePerspectiveSlicesBackground)
     if (!conf.hideAllSlices) {
       const removeBgConfig = conf.removePerspectiveSlicesBackground;
       const render = removeBgConfig ? nehubaSliceViewRenderHelper : sliceViewRenderHelper;
@@ -549,7 +619,7 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
           viewportNormalInCanonicalCoordinates,
         } = sliceView.projectionParameters.value;
         if (sliceViewWidth === 0 || sliceViewHeight === 0 || !sliceView.valid) {
-            continue;
+          continue;
         }
         if (conf.hideSlices) {
           const views = this.config.layout!.views as SliceViewsConfig;
@@ -630,10 +700,17 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
     }
 
     if (conf.drawZoomLevels && showSliceViews) {
-      const cutOff = conf.drawZoomLevels.cutOff;
-      // console.log((<any>this.viewer).slicesNavigationState.zoomFactor.value);
+      const cutOff = conf.drawZoomLevels?.cutOff;
+      const _min = conf.drawZoomLevels?.min || Number.NEGATIVE_INFINITY
+      let scalingMat: mat4|null = null
+      const hideSlices = conf.hideSlices || []
       if (cutOff && (<any>this.viewer).slicesNavigationState.zoomFactor.value < cutOff) {
+        let idx = -1
         for (let sliceView of this.planarSlices) {
+          idx += 1
+          if (hideSlices.includes(`slice${(idx % 3) + 1}` as any)) {
+            continue
+          }
           const {
             width: sliceViewWidth,
             height: sliceViewHeight,
@@ -641,10 +718,23 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
           } = sliceView.projectionParameters.value;
           let mat = tempMat4;
           // Need a matrix that maps (+1, +1, 0) to projectionMat * (width, height, 0)
+
           mat4.identity(mat);
-          mat[0] = sliceViewWidth / 2.0;
-          mat[5] = -sliceViewHeight / 2.0;
+          mat[0] = sliceViewWidth / 2.0
+          mat[5] = -sliceViewHeight / 2.0
           mat4.multiply(mat, sliceViewInvViewMatrix, mat);
+          
+          // only calculate the lower bound substrate once, reuse in all 3 slice view if needed)
+          if (!scalingMat) {
+            mat4.getScaling(tempVec3, mat)
+            tempVec3[0] = Math.max(tempVec3[0], _min) / tempVec3[0]
+            tempVec3[1] = Math.max(tempVec3[1], _min) / tempVec3[1]
+            tempVec3[2] = 1
+
+            scalingMat = mat4.fromScaling(mat4.create(), tempVec3)
+          }
+
+          mat4.multiply(mat, mat, scalingMat);          
           mat4.multiply(mat, viewProjectionMat, mat);
           const color = conf.drawZoomLevels.color || vec4.fromValues(1.0, 0.0, 0.0, 0.2);
           transparentPlaneRenderHelper.draw(mat, color, {factor: -1.0, units: 1.0}); //TODO Add z offset values to config
