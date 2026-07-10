@@ -7,133 +7,117 @@ import "neuroglancer";
 
 import { NehubaViewer } from "./nehuba/NehubaViewer"
 import { Config } from "./nehuba/config";
+import { kAxes, mat3, mat4, quat, vec3, vec4 } from "neuroglancer/unstable/util/geom.js";
+import { registerActionListener } from "neuroglancer/unstable/util/event_action_map.js";
+import { UrlHashBinding } from "neuroglancer/unstable/ui/url_hash_binding.js"
+import { LayerManager } from "neuroglancer/unstable/layer/index.js";
 
-const container = document.getElementById("neuroglancer-container");
-if (!container) {
-  throw new Error("Missing #neuroglancer-container element");
-}
+const export_nehuba = {
+  createNehubaViewer: (config: Config, errhandler: (err: Error) => void) => {
+    const nehubaViewer = NehubaViewer.create(config, undefined, errhandler)
+    const viewer = nehubaViewer.ngviewer;
+    (window as any).viewer = viewer;
+    (window as any).nehubaViewer = nehubaViewer;
+    return nehubaViewer
+  },
+  quat,
+  vec3,
+  vec4,
+  mat3,
+  mat4,
+  kAxes,
+  get NehubaViewer(){
+    throw new Error(`.NehubaViewer is no longer supported`)
+  },
+  get ManagedUserLayer(){
+    throw new Error(`.ManagedUserLayer is no longer supported`)
+  },
+  get Config() {
+    throw new Error(`.Config is no longer supported`)
+  },
+  get LayoutEventDetail() {
+    throw new Error(`.LayoutEventDetail is no longer supported`)
+  },
+  get layoutEventType() {
+    throw new Error(`.layoutEventType is no longer supported`)
+  },
+  get PerspectiveRenderEventDetail() {
+    throw new Error(`.PerspectiveRenderEventDetail is no longer supported`)
+  },
+  get perspectiveRenderEventType() {
+    throw new Error(`.perspectiveRenderEventType is no longer supported`)
+  },
+  registerActionListener,
 
-const config: Config = {
-    "configName": "",
-    "globals": {
-      "hideNullImageValues": true,
-      "useNehubaLayout": true,
-      "useNehubaMeshLayer": true,
-      "useCustomSegmentColors": true
-    },
-    "zoomWithoutCtrl": true,
-    "hideNeuroglancerUI": true,
-    "rightClickWithCtrl": true,
-    "rotateAtViewCentre": true,
-    "enableMeshLoadingControl": true,
-    "zoomAtViewCentre": true,
-    // "restrictUserNavigation": true,
-    "dataset": {
-      "imageBackground": [1,1,1] as any,
-      "initialNgState": {
-        "showDefaultAnnotations": false,
-        "layers": {},
-        "navigation": {
-          "zoomFactor": 350000 ,
-          pose: {
-            position: {
-              voxelSize: [1, 1, 1]
-            }
-          }
-        },
-        "perspectiveOrientation": [
-          0.3140767216682434,
-          -0.7418519854545593,
-          0.4988985061645508,
-          -0.3195493221282959
-        ],
-        "perspectiveZoom": 1922235.5293810747
+  getNgPatchableObj(){
+    return {
+      UrlHashBinding,
+      LayerManager,
+      get SliceViewPanel(){
+        throw new Error(`.SliceViewPanel is no longer supported`)
+      },
+      get PerspectivePanel(){
+        throw new Error(`.PerspectivePanel is no longer supported`)
       }
-    },
-    "layout": {
-      "useNehubaPerspective": {
-        "perspectiveSlicesBackground": [1,1,1] as any,
-        "removePerspectiveSlicesBackground": {"color":[1,1,1,1] as any,"mode":"=="},
-        "fixedZoomPerspectiveSlices": {
-          "sliceViewportWidth": 300,
-          "sliceViewportHeight": 300,
-          "sliceZoom": 563818.3562426177,
-          "sliceViewportSizeMultiplier": 2
-        },
-        "hideSlices": ["slice2", "slice3"],
-        "mesh": {
-          "backFaceColor": [1,1,1] as any,
-          "removeBasedOnNavigation": true,
-          "flipRemovedOctant": true,
-          
-        },
-        "centerToOrigin": true,
-        "drawSubstrates": {"color":[0.5,0.5,0.5,0] as any, },
-        "drawZoomLevels": {
-          "cutOff":150000,
-          min: 5e6
-        },
-        "restrictZoomLevel": {
-          "minZoom": 1200000 * 82.842712474619,
-          "maxZoom": 3500000 * 82.842712474619
-        }
-      }
-    },
-  }
-
-const nehubaViewer = NehubaViewer.create(config)
-
-const spec = {
-  type: "image",
-  source: "precomputed://https://neuroglancer.humanbrainproject.eu/precomputed/BigBrainRelease.2015/8bit",
-  transform: [[1.0, 0.0, 0.0, -70677184.0], [0.0, 1.0, 0.0, -70010000.0], [0.0, 0.0, 1.0, -58788284.0], [0.0, 0.0, 0.0, 1.0]],
-}
-
-const spec2 = {
-  type: "segmentation",
-  source: "precomputed://https://neuroglancer.humanbrainproject.eu/precomputed/BigBrainRelease.2015/classif",
-  transform: [[1, 0, 0, -70666600], [0, 1, 0, -72910000], [0, 0, 1, -58777700], [0, 0, 0, 1]],
-  segments: [],
-  segmentColors: {
-    "100": "#ffffff",
-    "200": "#ffffff",
-  }
-}
-
-nehubaViewer.addLayer(spec, "foo")
-nehubaViewer.addLayer(spec2, "foo2")
-
-;(window as any)['nehubaViewer'] = nehubaViewer
-
-setTimeout(() => {
-  const l = nehubaViewer.ngviewer?.layerManager.getLayerByName("foo2")
-  l.layer.displayState.segmentationGroupState.value.visibleSegments.setMeshesToLoad([100, 200])
-  const panels = Array.from(nehubaViewer.ngviewer.display.panels)
-  const sv = panels[0].element
-  const pv = panels[3].element
-  const v: HTMLElement|null = document.querySelector('.neuroglancer-layer-group-viewer')
-  if (!!v) {
-
-    for (const c of v.children){
-      v?.removeChild(c)
     }
-    v.style.position = 'relative'
-    
-    sv.style.position = 'relative'
-    sv.style.zIndex = '0'
+  },
+  getNgHash(viewer?: any){
+    const _viewer = viewer || (window as any).viewer
+    if (!_viewer) return null
+    const stateJson = viewer.state.toJSON()
+    stateJson.layers = stateJson.layers.map((l: any) => ({ ...l, segmentColors: undefined }))
+    const fragment = JSON.stringify(stateJson)
+    return '#!' + encodeURI(fragment).replace(/[!'()*;,]/g, (c) =>
+      '%' + c.charCodeAt(0).toString(16).toUpperCase())
+  },
+  openInVanillaNg(viewer? : any, url = "https://atlases.ebrains.eu/viewer/vanilla.html"){
+    const hash = this.getNgHash(viewer)
+    if (!hash) throw new Error('viewer is not provided as an argument, window.viewer is not defined')
+    window.open(`${url}${hash}`, '_blank')
+  },
 
-    pv.style.position = 'absolute'
-    pv.style.zIndex = '1'
-    pv.style.width = '10dvw'
-    pv.style.height = '10dvh'
-    pv.style.bottom = '2dvh'
-    pv.style.right = '2dvw'
+  get pako(){
+    throw new Error(`.pako is no longer supported`)
+  },
 
-    v.appendChild(sv)
-    v.appendChild(pv)
-  }
 
-}, 100);
+  get removeBackgroundMode(){
+    throw new Error(`.removeBackgroundMode is no longer supported`)
+  },
+  get SliceRenderEventDetail(){
+    throw new Error(`.SliceRenderEventDetail is no longer supported`)
+  },
+  get sliceRenderEventType(){
+    throw new Error(`.sliceRenderEventType is no longer supported`)
+  },
+  get dispatchEventWithModifiers(){
+    throw new Error(`.dispatchEventWithModifiers is no longer supported`)
+  },
+  get Uint64(){
+    throw new Error(`.Uint64 is no longer supported`)
+  },
+};
+
+
+(globalThis as any).export_nehuba = export_nehuba
+
+// (window as any).export_nehuba = export_nehuba
+
+// const container = document.getElementById("neuroglancer-container");
+// if (!container) {
+//   throw new Error("Missing #neuroglancer-container element");
+// }
+
+
+
+
+// ;(window as any)['nehubaViewer'] = nehubaViewer
+
+// setTimeout(() => {
+//   const l = nehubaViewer.ngviewer?.layerManager.getLayerByName("foo2")
+//   l.layer.displayState.segmentationGroupState.value.visibleSegments.setMeshesToLoad([100, 200])
+
+// }, 100);
 
 // const viewer = setupDefaultViewer({ target: container });
 // console.log(viewer);

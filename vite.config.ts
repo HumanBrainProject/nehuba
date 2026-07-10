@@ -20,10 +20,26 @@ export default defineConfig({
   worker: {
     // Required due to use of dynamic imports in Neuroglancer.
     format: "es",
+    rollupOptions: {
+      output: {
+        entryFileNames: "[name].js",
+        chunkFileNames: "[name].js",
+        assetFileNames: "[name][extname]",
+      },
+    },
   },
   build: {
     // Avoid spurious warnings due to large chunks from Neuroglancer.
     chunkSizeWarningLimit: 2 * 1024 * 1024,
+    rollupOptions: {
+      output: {
+        // Disable filename hashing so asset/chunk names are stable and
+        // predictable (easier to copy into an Angular build, etc.).
+        entryFileNames: "[name].js",
+        chunkFileNames: "[name].js",
+        assetFileNames: "[name][extname]",
+      },
+    },
   },
   server: {
     port: 8080,

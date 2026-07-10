@@ -8,7 +8,7 @@ import { configSymbol } from "./nehuba_layout";
 
 export class NehubaViewer {
   static create(
-    config: Config,
+    config: Config = {},
     target?: HTMLElement,
     errorHandler?: (error: Error) => void
   ) {
@@ -27,9 +27,24 @@ export class NehubaViewer {
     if (config.hideNeuroglancerUI) viewer.uiConfiguration.showUIControls.value = false;
     this.setBackgroundsFromConfig(viewer, config);
 		configureInstance(viewer, config);
+    
+		if (viewer.layerManager.managedLayers.length === 0) {
+			NehubaViewer.restoreInitialState(viewer, config);
+		}
 
     return new NehubaViewer(viewer, config)
   }
+  private static restoreInitialState(viewer: Viewer, config: Config){
+    
+		const state = config.dataset && config.dataset.initialNgState;
+		state && this.restoreViewerState(viewer, state, config);
+  }
+  
+	private static restoreViewerState(viewer: Viewer, state: any, config: Config) {
+		viewer.state.reset(); //Needed to reset from split view, reset obliqe slicing, reset slices checkbox etc...
+		viewer.state.restoreState(state);
+		if (!state.crossSectionBackgroundColor) NehubaViewer.setBackgroundsFromConfig(viewer, config);
+	}
   
 	private static setBackgroundsFromConfig(viewer: Viewer, config: Config) {
 		const crossSections = (config.dataset && config.dataset.imageBackground) || config.crossSectionBackground;
@@ -47,7 +62,7 @@ export class NehubaViewer {
   }
 
   addLayer(spec: any, name?: string){
-    const _name = name || spec.get("name")
+    const _name = name || spec["name"]
     if (!_name) {
       throw new Error("layer name must be provided")
     }

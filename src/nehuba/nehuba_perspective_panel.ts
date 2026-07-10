@@ -83,7 +83,6 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
   axesProjectionParam: DerivedProjectionParameters
   constructor(context: DisplayContext, element: HTMLElement, viewer: PerspectiveViewerState, private config: Config) {
     super(context, element, viewer);
-    console.log("new nehuba perspective???")
 
     const removeBgConfig = config.layout!.useNehubaPerspective!.removePerspectiveSlicesBackground;
     const mode = (removeBgConfig && removeBgConfig.mode) || 'none';
@@ -143,13 +142,6 @@ export class NehubaPerspectivePanel extends PerspectivePanel {
         },
       })
     )
-  }
-
-  // DisplayContext.draw() sorts all panels by `drawOrder` (higher == later) and
-  // paints them into the single shared WebGL canvas in that order. Returning a large
-  // value guarantees the perspective panel is the last thing painted each frame.
-  get drawOrder() {
-    return 1000;
   }
 
   disposed() {

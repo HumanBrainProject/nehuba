@@ -1,13 +1,16 @@
 {
-  "name": "nehuba",
-  "version": "0.0.1",
+  "name": "export-nehuba",
+  "version": "0.2.0-dev5",
   "description": "",
   "license": "ISC",
   "author": "",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
