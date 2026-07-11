@@ -5,6 +5,9 @@ import "neuroglancer";
 // The public API lives under the "neuroglancer/unstable/*" subpath,
 // which the package's exports map resolves to its built `lib/*.js`.
 
+// Side-effect import: registers nehuba's custom data sources (precompmesh, swc).
+import "./nehuba/datasources";
+
 import { NehubaViewer } from "./nehuba/NehubaViewer"
 import { Config } from "./nehuba/config";
 import { kAxes, mat3, mat4, quat, vec3, vec4 } from "neuroglancer/unstable/util/geom.js";

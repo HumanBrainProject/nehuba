@@ -6,6 +6,21 @@ Notes from porting `NehubaLayout` (`src/nehuba/nehuba_layout.ts`) from the old n
 
 ## Remaining work
 
+- [ ] **SWC worker backend.** The `swc://` data source
+  (`src/nehuba/datasources/swc/`) is ported but frontend-only. Its
+  `SkeletonSource.download()` (`swc/backend.ts`) must run in the chunk worker,
+  but nehuba_v2 uses neuroglancer's *prebuilt* worker
+  (`lib/chunk_worker.bundle.js`, spawned by `DataManagementContext` with a
+  hardcoded URL), which has no hook for custom backend RPC classes. To finish:
+  (1) add a custom chunk-worker bundle entry that imports neuroglancer's worker
+  registrations plus `swc/backend.ts`, then (2) construct the `Viewer` with a
+  `DataManagementContext` (subclass/override) pointing at it — `NehubaViewer`
+  currently uses `makeDefaultViewer()`, which builds the default context
+  internally. Until then the `swc://` scheme resolves but skeletons won't load
+  (worker won't recognise `SWCSourceParameters.RPC_ID`). The `precompmesh://`
+  source needs none of this — it reuses precomputed's mesh backend, already in
+  the prebuilt worker.
+
 - [ ] **Port `NehubaPerspectivePanel`.** Not transplanted yet, so the
   `layout.useNehubaPerspective` branch in `NehubaLayout` falls back to plain
   `PerspectivePanel`. Consequences until ported:

@@ -6,6 +6,20 @@ import { configureInstance, setNehubaDefaultInputEventBindings } from "./hooks";
 import { makeLayer } from "neuroglancer/unstable/layer/index.js";
 import { configSymbol } from "./nehuba_layout";
 
+class FakeObs<T> {
+  constructor(){
+
+  }
+
+  subscribe(cb: (v: T) => void){
+    return {
+      unsubscribe: () => {
+        
+      }
+    }
+  }
+}
+
 export class NehubaViewer {
   static create(
     config: Config = {},
@@ -59,6 +73,9 @@ export class NehubaViewer {
   constructor(viewer: Viewer, config: Config) {
     this.ngviewer = viewer
     this.config = config
+    this.mouseOver = {
+      segment: {}
+    }
   }
 
   addLayer(spec: any, name?: string){
@@ -77,6 +94,11 @@ export class NehubaViewer {
     this.ngviewer.layerManager.addManagedLayer(l)
     
     return l
+  }
+
+  
+  mouseOver = {
+    segment: {}
   }
 }
 
