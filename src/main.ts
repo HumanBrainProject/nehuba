@@ -79,10 +79,19 @@ const export_nehuba = {
     window.open(`${url}${hash}`, '_blank')
   },
 
-  get pako(){
-    throw new Error(`.pako is no longer supported`)
+  pako: {
+    inflate(){
+      throw new Error(`Use the async equivalent inflateAsync instead`)
+    },
+    async inflateAsync(buf: ArrayBuffer, opts?: { to?: 'string' }): Promise<Uint8Array|string> {
+      const stream = new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"))
+      const result = new Response(stream)
+      if (opts?.to === "string") {
+        return await result.text()
+      }
+      return new Uint8Array(await result.arrayBuffer())
+    }
   },
-
 
   get removeBackgroundMode(){
     throw new Error(`.removeBackgroundMode is no longer supported`)

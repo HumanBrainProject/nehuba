@@ -12,6 +12,7 @@ import { SegmentationRenderLayer } from "neuroglancer/unstable/sliceview/volume/
 import { SegmentPropertyMap, getPreprocessedSegmentPropertyMap } from "neuroglancer/unstable/segmentation_display_state/property_map.js"
 import { SegmentationGraphSource } from "neuroglancer/unstable/segmentation_graph/source.js"
 import { LocalDataSource } from "neuroglancer/unstable/datasource/local.js"
+// import { TabSpecification } from "neuroglancer/unstable/widget/tab_view.js"
 
 let patched: boolean = false
 
@@ -29,6 +30,27 @@ export function patchNeuroglancer(config?: Config) {
   // if (conf.hideNullImageValues) fix_HideNullImageValues();
   // if (conf.useCustomSegmentColors) useNehubaColorsInSegmentationRenderLayer(); // !!! Depends on complementary hook in `hooks.ts`
   if (conf?.useNehubaMeshLayer) useNehubaMeshInSegmentationLayer(config.enableMeshLoadingControl);
+
+  // TabSpecification.prototype.add = function() {
+    
+
+  //   if (this instanceof TabSpecification && arguments[0] === "rendering") {
+  //     // this.tabs.clear()
+  //     this.dispose()
+  //     console.log('add prototype patching', this, arguments)
+  //   }
+
+  // }
+  // const desc = Object.getOwnPropertyDescriptor(TabSpecification.prototype, 'default')
+  // Object.defineProperty(TabSpecification.prototype, 'default', {
+  //   ...desc,
+  //   set(value: any) {
+  //     if (this instanceof TabSpecification) {
+  //       console.log("setting", value)
+  //       desc?.set?.call(this, null)
+  //     }    }
+  // })
+  
 
   patched = true;
 }
