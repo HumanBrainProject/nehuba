@@ -1,6 +1,17 @@
+// Side-effect import: registers the volume chunk-format handlers (uncompressed +
+// compressed-segmentation) that `getChunkFormatHandler` looks up on the main
+// thread. Upstream this is pulled in by `ui/minimal_viewer.js`, which
+// `makeNehubaViewer` (below) bypasses in order to inject a custom data context,
+// so it must be imported explicitly here.
+import "neuroglancer/unstable/sliceview/chunk_format_handlers.js"
 import { Viewer } from "neuroglancer/unstable/viewer.js"
-import { makeDefaultViewer } from "neuroglancer/unstable/ui/default_viewer.js"
+import { DisplayContext } from "neuroglancer/unstable/display_context.js"
+import {
+  disableContextMenu,
+  disableWheel,
+} from "neuroglancer/unstable/ui/disable_default_actions.js"
 import { packColor } from "neuroglancer/unstable/util/color.js"
+import { NehubaDataManagementContext } from "./nehuba_data_context"
 import { Config } from "./config";
 import { patchNeuroglancer } from "./patches";
 import { configureInstance, setNehubaDefaultInputEventBindings } from "./hooks";
@@ -9,6 +20,30 @@ import { SegmentationUserLayer } from "neuroglancer/unstable/layer/segmentation/
 import { configSymbol } from "./nehuba_layout";
 import { quat, vec3, vec4 } from "neuroglancer/unstable/util/geom.js";
 import { isVisibleSegmentsWrapper } from "./nehuba_mesh_layer";
+
+/**
+ * Builds a neuroglancer {@link Viewer} wired to nehuba's custom chunk worker
+ * (via {@link NehubaDataManagementContext}), so custom backend data sources such
+ * as `nehuba-nifti` work. Mirrors `makeDefaultViewer` / `makeMinimalViewer`
+ * upstream, plus the injected data context.
+ */
+function makeNehubaViewer(target?: HTMLElement): Viewer {
+  disableContextMenu();
+  disableWheel();
+  let el: HTMLElement | null =
+    target ?? document.getElementById("neuroglancer-container");
+  if (el === null) {
+    el = document.createElement("div");
+    el.id = "neuroglancer-container";
+    document.body.appendChild(el);
+  }
+  const display = new DisplayContext(el);
+  const dataContext = new NehubaDataManagementContext(
+    display.gl,
+    display,
+  ) as any;
+  return new Viewer(display, { dataContext });
+}
 
 /** Value emitted by {@link NehubaViewer.mouseOver}'s `segment` observable.
  *  Attention! A `null` segment indicates that the mouse left the segmentation area. */
@@ -48,10 +83,11 @@ export class Observable<T> {
 
 export class NehubaViewer {
   static create(
-    config: Config = {},
+    config: Config |null = null,
     target?: HTMLElement,
     errorHandler?: (error: Error) => void
   ) {
+    config = config || {}
     const _target = target || document.getElementById("neuroglancer-container");
 		if ((<any>_target)[configSymbol]) {
 			const error = new Error('Viewer is already created in this container: ' + parent);
@@ -62,7 +98,7 @@ export class NehubaViewer {
     (<any>_target)[configSymbol] = config;
     patchNeuroglancer(config);
 
-    const viewer = makeDefaultViewer()
+    const viewer = makeNehubaViewer(_target ?? undefined)
     setNehubaDefaultInputEventBindings(viewer.inputEventBindings)
     if (config.hideNeuroglancerUI) viewer.uiConfiguration.showUIControls.value = false;
     this.setBackgroundsFromConfig(viewer, config);
@@ -106,6 +142,10 @@ export class NehubaViewer {
     this.navigationState = {
       all: this.createNavigationStateAllObservable(viewer)
     }
+  }
+
+  dispose(){
+    
   }
 
   /**
@@ -256,6 +296,28 @@ export class NehubaViewer {
       const unsub = mouseState.changed.add(emit);
       return () => unsub();
     });
+  }
+
+  /**
+   * Moves the cross-section to the given physical position, expressed in
+   * nanometres for the (up to three) display dimensions. This is the inverse of
+   * the conversion used by {@link createNavigationStateAllObservable}: since
+   * neuroglancer stores `scales` in base SI units (metres per voxel for length
+   * dimensions), voxel = nm / (scale * 1e9).
+   */
+  setPosition(position: vec3){
+    const nav = this.ngviewer?.navigationState;
+    if (!nav) {
+      throw new Error("navigationState not populated")
+    }
+    const { scales } = nav.position.coordinateSpace.value;
+    const { displayDimensionIndices, displayRank } = nav.pose.displayDimensions.value;
+    const voxel = nav.position.value;
+    for (let i = 0; i < displayRank; ++i) {
+      const dim = displayDimensionIndices[i];
+      voxel[dim] = position[i] / (scales[dim] * 1e9);
+    }
+    nav.position.value = voxel;
   }
 
   addLayer(spec: any, name?: string, insertIndex?: number){

@@ -1,6 +1,6 @@
 {
   "name": "export-nehuba",
-  "version": "0.2.0-dev11",
+  "version": "0.2.0-dev12",
   "description": "",
   "license": "Apache-2.0",
   "author": "",
@@ -15,10 +15,11 @@
     "start": "vite"
   },
   "dependencies": {
+    "nifti-reader-js": "^0.8.0"
   },
   "devDependencies": {
+    "neuroglancer": "file:../neuroglancer-master",
     "typescript": "^5.6.0",
-    "vite": "^6.0.0",
-    "neuroglancer": "file:../neuroglancer-master"
+    "vite": "^6.0.0"
   }
 }

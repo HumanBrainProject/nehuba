@@ -17,7 +17,7 @@ import { LayerManager } from "neuroglancer/unstable/layer/index.js";
 import { StatusMessage } from "neuroglancer/unstable/status.js";
 
 const export_nehuba = {
-  createUrlHashedNehubaViewer: function(config: Config, errhandler: (err: Error) => void){
+  createUrlHashedNehubaViewer: function (config: Config | null = null, errhandler: (err: Error) => void) {
     const nehubaViewer = this.createNehubaViewer(config, errhandler)
     const viewer = nehubaViewer.ngviewer
     if (!viewer) {
@@ -46,7 +46,7 @@ const export_nehuba = {
     hashBinding.updateFromUrlHash();
     return viewer
   },
-  createNehubaViewer: (config: Config, errhandler: (err: Error) => void) => {
+  createNehubaViewer: (config: Config | null = null, errhandler: (err: Error) => void) => {
     const nehubaViewer = NehubaViewer.create(config, undefined, errhandler)
     const viewer = nehubaViewer.ngviewer;
     (window as any).viewer = viewer;
@@ -59,10 +59,10 @@ const export_nehuba = {
   mat3,
   mat4,
   kAxes,
-  get NehubaViewer(){
+  get NehubaViewer() {
     throw new Error(`.NehubaViewer is no longer supported`)
   },
-  get ManagedUserLayer(){
+  get ManagedUserLayer() {
     throw new Error(`.ManagedUserLayer is no longer supported`)
   },
   get Config() {
@@ -82,19 +82,19 @@ const export_nehuba = {
   },
   registerActionListener,
 
-  getNgPatchableObj(){
+  getNgPatchableObj() {
     return {
       UrlHashBinding,
       LayerManager,
-      get SliceViewPanel(){
+      get SliceViewPanel() {
         throw new Error(`.SliceViewPanel is no longer supported`)
       },
-      get PerspectivePanel(){
+      get PerspectivePanel() {
         throw new Error(`.PerspectivePanel is no longer supported`)
       }
     }
   },
-  getNgHash(viewer?: any){
+  getNgHash(viewer?: any) {
     const _viewer = viewer || (window as any).viewer
     if (!_viewer) return null
     const stateJson = _viewer.state.toJSON()
@@ -103,17 +103,17 @@ const export_nehuba = {
     return '#!' + encodeURI(fragment).replace(/[!'()*;,]/g, (c) =>
       '%' + c.charCodeAt(0).toString(16).toUpperCase())
   },
-  openInVanillaNg(viewer?: any, url = "https://atlases.ebrains.eu/viewer/vanilla.html"){
+  openInVanillaNg(viewer?: any, url = "https://atlases.ebrains.eu/viewer/vanilla.html") {
     const hash = this.getNgHash(viewer)
     if (!hash) throw new Error('viewer is not provided as an argument, window.viewer is not defined')
     window.open(`${url}${hash}`, '_blank')
   },
 
   pako: {
-    inflate(){
+    inflate() {
       throw new Error(`Use the async equivalent inflateAsync instead`)
     },
-    async inflateAsync(buf: ArrayBuffer, opts?: { to?: 'string' }): Promise<Uint8Array|string> {
+    async inflateAsync(buf: ArrayBuffer, opts?: { to?: 'string' }): Promise<Uint8Array | string> {
       const stream = new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"))
       const result = new Response(stream)
       if (opts?.to === "string") {
@@ -123,19 +123,19 @@ const export_nehuba = {
     }
   },
 
-  get removeBackgroundMode(){
+  get removeBackgroundMode() {
     throw new Error(`.removeBackgroundMode is no longer supported`)
   },
-  get SliceRenderEventDetail(){
+  get SliceRenderEventDetail() {
     throw new Error(`.SliceRenderEventDetail is no longer supported`)
   },
-  get sliceRenderEventType(){
+  get sliceRenderEventType() {
     throw new Error(`.sliceRenderEventType is no longer supported`)
   },
-  get dispatchEventWithModifiers(){
+  get dispatchEventWithModifiers() {
     throw new Error(`.dispatchEventWithModifiers is no longer supported`)
   },
-  get Uint64(){
+  get Uint64() {
     throw new Error(`.Uint64 is no longer supported`)
   },
 };
@@ -160,7 +160,7 @@ const export_nehuba = {
 //       "hideNullImageValues": true,
 //       "useNehubaLayout": true,
 //       "useNehubaMeshLayer": true,
-      
+
 //       "useCustomSegmentColors": true
 //     },
 //     "zoomWithoutCtrl": true,
@@ -220,7 +220,7 @@ const export_nehuba = {
 //   throw new Error("Missing #neuroglancer-container element");
 // }
 
-;(window as any)['nehubaViewer'] = nehubaViewer = export_nehuba.createNehubaViewer(null, console.log)
+// ; (window as any)['nehubaViewer'] = nehubaViewer = export_nehuba.createNehubaViewer(undefined, console.log)
 // ;(window as any)['config'] = config
 
 // const imgsrc = "https://neuroglancer.humanbrainproject.eu/precomputed/BigBrainRelease.2015/8bit"

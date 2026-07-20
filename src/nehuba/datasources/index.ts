@@ -5,3 +5,4 @@
  */
 import "./precompmesh/register_default";
 import "./swc/register_default";
+import "./nehuba_nifti/register_default";
