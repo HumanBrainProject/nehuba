@@ -7,13 +7,25 @@ import { configureInstance, setNehubaDefaultInputEventBindings } from "./hooks";
 import { makeLayer, ManagedUserLayer } from "neuroglancer/unstable/layer/index.js";
 import { SegmentationUserLayer } from "neuroglancer/unstable/layer/segmentation/index.js";
 import { configSymbol } from "./nehuba_layout";
-import { vec3, vec4 } from "neuroglancer/unstable/util/geom.js";
+import { quat, vec3, vec4 } from "neuroglancer/unstable/util/geom.js";
+import { isVisibleSegmentsWrapper } from "./nehuba_mesh_layer";
 
 /** Value emitted by {@link NehubaViewer.mouseOver}'s `segment` observable.
  *  Attention! A `null` segment indicates that the mouse left the segmentation area. */
 export interface MouseOverSegment {
   segment: number | null;
   layer: { name: string; url?: string };
+}
+
+/** Snapshot of the full navigation state emitted by
+ *  {@link NehubaViewer.navigationState}'s `all` observable. */
+export interface NavigationStateAll {
+  orientation: quat;
+  perspectiveOrientation: quat;
+  perspectiveZoom: number;
+  /** Physical position of the display dimensions, in nanometres. */
+  position: vec3;
+  zoom: number;
 }
 
 export interface Subscription {
@@ -88,8 +100,72 @@ export class NehubaViewer {
     this.ngviewer = viewer
     this.config = config
     this.mouseOver = {
-      segment: this.createMouseOverSegmentObservable(viewer)
+      segment: this.createMouseOverSegmentObservable(viewer),
+      position: this.createMouseOverPositionObservable(viewer)
     }
+    this.navigationState = {
+      all: this.createNavigationStateAllObservable(viewer)
+    }
+  }
+
+  /**
+   * Builds an observable emitting a snapshot of the cross-section and
+   * perspective navigation state (orientation, position, zoom). Only emits
+   * when at least one of the values actually changed, so that redundant
+   * `changed` dispatches from neuroglancer do not produce duplicate emissions.
+   */
+  private createNavigationStateAllObservable(viewer: Viewer): Observable<NavigationStateAll> {
+    return new Observable<NavigationStateAll>((next) => {
+      let last: NavigationStateAll | null = null;
+
+      // Convert the current voxel position into physical nanometres for the
+      // (up to three) display dimensions. neuroglancer stores `scales` in base
+      // SI units (metres per voxel for length dimensions), so nm = voxel * scale * 1e9.
+      const physicalPositionNm = (): vec3 => {
+        const nav = viewer.navigationState;
+        const voxel = nav.position.value;
+        const { scales } = nav.position.coordinateSpace.value;
+        const { displayDimensionIndices, displayRank } = nav.pose.displayDimensions.value;
+        const out = vec3.create();
+        for (let i = 0; i < displayRank; ++i) {
+          const dim = displayDimensionIndices[i];
+          out[i] = voxel[dim] * scales[dim] * 1e9;
+        }
+        return out;
+      };
+
+      const snapshot = (): NavigationStateAll => ({
+        orientation: quat.clone(viewer.navigationState.pose.orientation.orientation),
+        perspectiveOrientation: quat.clone(viewer.perspectiveNavigationState.pose.orientation.orientation),
+        perspectiveZoom: viewer.perspectiveNavigationState.zoomFactor.value,
+        position: physicalPositionNm(),
+        zoom: viewer.navigationState.zoomFactor.value,
+      });
+
+      const differs = (a: NavigationStateAll, b: NavigationStateAll) =>
+        a.zoom !== b.zoom
+        || a.perspectiveZoom !== b.perspectiveZoom
+        || !vec3.exactEquals(a.position, b.position)
+        || !quat.exactEquals(a.orientation, b.orientation)
+        || !quat.exactEquals(a.perspectiveOrientation, b.perspectiveOrientation);
+
+      const emit = () => {
+        const current = snapshot();
+        if (last === null || differs(last, current)) {
+          last = current;
+          next(current);
+        }
+      };
+
+      emit();
+      const unsubCrossSection = viewer.navigationState.changed.add(emit);
+      const unsubPerspective = viewer.perspectiveNavigationState.changed.add(emit);
+
+      return () => {
+        unsubCrossSection();
+        unsubPerspective();
+      };
+    });
   }
 
   /**
@@ -140,6 +216,48 @@ export class NehubaViewer {
     });
   }
 
+  /**
+   * Builds an observable emitting the physical position of the mouse cursor in
+   * nanometres for the (up to three) display dimensions. Emits `null` when the
+   * cursor leaves the view / is not associated with a position, so consumers
+   * should check for `null` before using the value.
+   */
+  private createMouseOverPositionObservable(viewer: Viewer): Observable<vec3 | null> {
+    return new Observable<vec3 | null>((next) => {
+      const mouseState = viewer.mouseState;
+
+      // Convert the current mouse voxel position into physical nanometres for
+      // the display dimensions. `scales` are in base SI units (metres per voxel
+      // for length dimensions), so nm = voxel * scale * 1e9.
+      const physicalPositionNm = (): vec3 | null => {
+        if (!mouseState.active) return null;
+        const voxel = mouseState.position;
+        const { scales } = mouseState.coordinateSpace;
+        const { displayDimensionIndices, displayRank } = viewer.navigationState.pose.displayDimensions.value;
+        const out = vec3.create();
+        for (let i = 0; i < displayRank; ++i) {
+          const dim = displayDimensionIndices[i];
+          out[i] = voxel[dim] * scales[dim] * 1e9;
+        }
+        return out;
+      };
+
+      let last: vec3 | null = null;
+      const emit = () => {
+        const current = physicalPositionNm();
+        // Skip redundant emissions (both null, or identical positions).
+        if (last === null && current === null) return;
+        if (last !== null && current !== null && vec3.exactEquals(last, current)) return;
+        last = current;
+        next(current);
+      };
+
+      emit();
+      const unsub = mouseState.changed.add(emit);
+      return () => unsub();
+    });
+  }
+
   addLayer(spec: any, name?: string, insertIndex?: number){
     const _name = name || spec["name"]
     if (!_name) {
@@ -156,6 +274,17 @@ export class NehubaViewer {
     this.ngviewer.layerManager.addManagedLayer(l, insertIndex)
     
     return l
+  }
+
+  setMeshesToLoad(ids: number[], layername: string){
+    const layer = this.ngviewer?.layerManager.getLayerByName(layername);
+    if (!(layer?.layer instanceof SegmentationUserLayer)) {
+      return
+    }
+    if (!isVisibleSegmentsWrapper(layer.layer.displayState.segmentationGroupState.value.visibleSegments)) {
+      return
+    }
+    layer.layer.displayState.segmentationGroupState.value.visibleSegments.setMeshesToLoad(ids)
   }
 
   showSegments(ids: number[], layername: string){
@@ -184,6 +313,15 @@ export class NehubaViewer {
    *  so it is NECESSARY to check the value for null before using it. */
   readonly mouseOver: {
     readonly segment: Observable<MouseOverSegment>
+    /** Physical mouse position in nanometres for the display dimensions, or
+     *  `null` when the cursor is not over the view. */
+    readonly position: Observable<vec3 | null>
+  }
+
+  /** Emits a snapshot of the navigation state whenever orientation, position
+   *  or zoom (cross-section or perspective) changes. */
+  readonly navigationState: {
+    readonly all: Observable<NavigationStateAll>
   }
 }
 

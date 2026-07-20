@@ -14,8 +14,38 @@ import { kAxes, mat3, mat4, quat, vec3, vec4 } from "neuroglancer/unstable/util/
 import { registerActionListener } from "neuroglancer/unstable/util/event_action_map.js";
 import { UrlHashBinding } from "neuroglancer/unstable/ui/url_hash_binding.js"
 import { LayerManager } from "neuroglancer/unstable/layer/index.js";
+import { StatusMessage } from "neuroglancer/unstable/status.js";
 
 const export_nehuba = {
+  createUrlHashedNehubaViewer: function(config: Config, errhandler: (err: Error) => void){
+    const nehubaViewer = this.createNehubaViewer(config, errhandler)
+    const viewer = nehubaViewer.ngviewer
+    if (!viewer) {
+      throw new Error(`viewer not created`)
+    }
+    const hashBinding = viewer.registerDisposer(
+      new UrlHashBinding(
+        viewer.state,
+        viewer.dataSourceProvider.sharedKvStoreContext,
+        {
+          defaultFragment: undefined
+        },
+      ),
+    );
+    viewer.registerDisposer(
+      hashBinding.parseError.changed.add(() => {
+        const { value } = hashBinding.parseError;
+        if (value !== undefined) {
+          const status = new StatusMessage();
+          status.setErrorMessage(`Error parsing state: ${value.message}`);
+          console.log("Error parsing state", value);
+        }
+        hashBinding.parseError;
+      }),
+    );
+    hashBinding.updateFromUrlHash();
+    return viewer
+  },
   createNehubaViewer: (config: Config, errhandler: (err: Error) => void) => {
     const nehubaViewer = NehubaViewer.create(config, undefined, errhandler)
     const viewer = nehubaViewer.ngviewer;
@@ -67,13 +97,13 @@ const export_nehuba = {
   getNgHash(viewer?: any){
     const _viewer = viewer || (window as any).viewer
     if (!_viewer) return null
-    const stateJson = viewer.state.toJSON()
+    const stateJson = _viewer.state.toJSON()
     stateJson.layers = stateJson.layers.map((l: any) => ({ ...l, segmentColors: undefined }))
     const fragment = JSON.stringify(stateJson)
     return '#!' + encodeURI(fragment).replace(/[!'()*;,]/g, (c) =>
       '%' + c.charCodeAt(0).toString(16).toUpperCase())
   },
-  openInVanillaNg(viewer? : any, url = "https://atlases.ebrains.eu/viewer/vanilla.html"){
+  openInVanillaNg(viewer?: any, url = "https://atlases.ebrains.eu/viewer/vanilla.html"){
     const hash = this.getNgHash(viewer)
     if (!hash) throw new Error('viewer is not provided as an argument, window.viewer is not defined')
     window.open(`${url}${hash}`, '_blank')
@@ -113,23 +143,98 @@ const export_nehuba = {
 
 (globalThis as any).export_nehuba = export_nehuba
 
-// (window as any).export_nehuba = export_nehuba
+
+
+
+// const backgrd = [1, 1, 1] as any
+// const scale = 1
+// const space = {
+//   id: "foo"
+// }
+
+// const PERSPECTIVE_ZOOM_FUDGE_FACTOR= 1
+
+// const config: Config = {
+//     "configName": "",
+//     "globals": {
+//       "hideNullImageValues": true,
+//       "useNehubaLayout": true,
+//       "useNehubaMeshLayer": true,
+      
+//       "useCustomSegmentColors": true
+//     },
+//     "zoomWithoutCtrl": true,
+//     "hideNeuroglancerUI": true,
+//     "rightClickWithCtrl": true,
+//     "rotateAtViewCentre": true,
+//     "enableMeshLoadingControl": true,
+//     "zoomAtViewCentre": true,
+//     // "restrictUserNavigation": true,
+//     "dataset": {
+//       "imageBackground": backgrd,
+//       "initialNgState": {
+//         "showDefaultAnnotations": false,
+//         "layers": {},
+//         "navigation": {
+//           "zoomFactor": 350000 * scale,
+//           pose: {
+//             position: {
+//               voxelSize: [1, 1, 1]
+//             }
+//           }
+//         },
+//         "perspectiveOrientation": [
+//           0.3140767216682434,
+//           -0.7418519854545593,
+//           0.4988985061645508,
+//           -0.3195493221282959
+//         ],
+//         "perspectiveZoom": 1922235.5293810747 * scale
+//       }
+//     },
+//     "layout": {
+//       "useNehubaPerspective": {
+//         "perspectiveSlicesBackground": backgrd,
+//         "fixedZoomPerspectiveSlices": {
+//           "sliceViewportWidth": space.id === 'nencki/nm/referencespace/v1.0.0/MARMOSET_NM_NISSL_2020' ? 580 : 300,
+//           "sliceViewportHeight": space.id === 'nencki/nm/referencespace/v1.0.0/MARMOSET_NM_NISSL_2020' ? 580 : 300,
+//           "sliceZoom": 563818.3562426177 * scale,
+//           "sliceViewportSizeMultiplier": 2
+//         },
+//         "mesh": {
+//           "backFaceColor": backgrd,
+//           "removeBasedOnNavigation": true,
+//           "flipRemovedOctant": true,
+//         },
+//         "centerToOrigin": true,
+//         // "restrictZoomLevel": {
+//         //   "minZoom": 1200000 * scale * PERSPECTIVE_ZOOM_FUDGE_FACTOR,
+//         //   "maxZoom": 3500000 * scale * PERSPECTIVE_ZOOM_FUDGE_FACTOR
+//         // }
+//       }
+//     }
+//   }
 
 // const container = document.getElementById("neuroglancer-container");
 // if (!container) {
 //   throw new Error("Missing #neuroglancer-container element");
 // }
 
+;(window as any)['nehubaViewer'] = nehubaViewer = export_nehuba.createNehubaViewer(null, console.log)
+// ;(window as any)['config'] = config
 
-
-
-// ;(window as any)['nehubaViewer'] = nehubaViewer
-
+// const imgsrc = "https://neuroglancer.humanbrainproject.eu/precomputed/BigBrainRelease.2015/8bit"
+// const segsrc = "https://neuroglancer.humanbrainproject.eu/precomputed/BigBrainRelease.2015/classif"
+// nehubaViewer.addLayer({
+//   source: imgsrc,
+//   transform: [[1.0, 0.0, 0.0, -70677184.0], [0.0, 1.0, 0.0, -70010000.0], [0.0, 0.0, 1.0, -58788284.0], [0.0, 0.0, 0.0, 1.0]]
+// }, "foo")
+// nehubaViewer.addLayer({
+//   source: segsrc,
+//   transform: [[1, 0, 0, -70666600], [0, 1, 0, -72910000], [0, 0, 1, -58777700], [0, 0, 0, 1]]
+// }, "foo2")
 // setTimeout(() => {
 //   const l = nehubaViewer.ngviewer?.layerManager.getLayerByName("foo2")
 //   l.layer.displayState.segmentationGroupState.value.visibleSegments.setMeshesToLoad([100, 200])
 
 // }, 100);
-
-// const viewer = setupDefaultViewer({ target: container });
-// console.log(viewer);

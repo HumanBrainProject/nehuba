@@ -37,10 +37,10 @@ highp vec3 decodeNormalOctahedronSnorm8(highp vec2 e) {
  * This layer has no dynamic shader parameters (e.g. silhouette rendering), so a single
  * constant value is sufficient.
  */
-const noShaderParameters = new WatchableValue<boolean>(false);
+
 
 export class NehubaMeshShaderManager extends MeshShaderManager {
-
+  public hideSlicesWatchable = new WatchableValue<boolean>(false);
   constructor(
     public fragmentRelativeVertices: boolean,
     public vertexPositionFormat: VertexPositionFormat,
@@ -170,7 +170,7 @@ if (${meshOcclusionConds.join(" && ")}) {
     return parameterizedEmitterDependentShaderGetter(layer, layer.gl, {
       memoizeKey:
         `mesh/NehubaMeshShaderManager/${this.fragmentRelativeVertices}/${this.vertexPositionFormat}`,
-      parameters: noShaderParameters,
+      parameters: this.hideSlicesWatchable,
       defineShader: (builder) => {
         this.defineShader(builder);
       },
@@ -181,10 +181,31 @@ if (${meshOcclusionConds.join(" && ")}) {
 export class NehubaMeshLayer extends MeshLayer {
 
   private getShader_;
+  private hideSlices = new Set<'slice1' | 'slice2' | 'slice3'>()
   constructor(chunkManager: ChunkManager, source: MeshSource, displayState: MeshDisplayState) {
     super(chunkManager, source, displayState);
     this.meshShaderManager = new NehubaMeshShaderManager(/*fragmentRelativeVertices=*/ false, VertexPositionFormat.float32);
     this.getShader_ = this.meshShaderManager.makeGetter(this)
+  }
+
+  rebuildShader(conf: Config){
+    const wantedHideSlices = new Set(conf.layout?.useNehubaPerspective?.hideSlices || [])
+    if (!(this.meshShaderManager instanceof NehubaMeshShaderManager)) {
+      return false
+    }
+    const currHideSlices = this.hideSlices
+    
+    if (wantedHideSlices.size !== currHideSlices.size) {
+      this.hideSlices = wantedHideSlices
+      this.meshShaderManager.hideSlicesWatchable.value = !this.meshShaderManager.hideSlicesWatchable.value
+      return true
+    }
+    if ([...wantedHideSlices].some(v => !currHideSlices.has(v))) {
+      this.hideSlices = wantedHideSlices
+      this.meshShaderManager.hideSlicesWatchable.value = !this.meshShaderManager.hideSlicesWatchable.value
+      return true
+    }
+    return false
   }
 
   draw(
@@ -198,9 +219,13 @@ export class NehubaMeshLayer extends MeshLayer {
       // No need for a separate pick ID pass.
       return;
     }
+    this.rebuildShader(renderContext.extra.config)
     const { gl, displayState, /*meshShaderManager*/ } = this;
     const meshShaderManager = this.meshShaderManager as unknown as NehubaMeshShaderManager;
     meshShaderManager.conf = renderContext.extra.config
+    
+    meshShaderManager.conf.layout?.useNehubaPerspective?.hideSlices
+
     const alpha = Math.min(1.0, displayState.objectAlpha.value);
 
     if (alpha <= 0.0) {
