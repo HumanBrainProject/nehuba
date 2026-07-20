@@ -21,5 +21,8 @@ import "neuroglancer/unstable/datasource/enabled_backend_modules.js";
 import "neuroglancer/unstable/kvstore/enabled_backend_modules.js";
 import "neuroglancer/unstable/worker_rpc_context.js";
 
+// Custom `blob:` base kvstore, so object URLs resolve in the worker too.
+import "./nehuba/datasources/blob_kvstore/blob_kvstore";
+
 // nehuba custom backends. These register additional RPC ids in this worker.
 import "./nehuba/datasources/nehuba_nifti/backend";
