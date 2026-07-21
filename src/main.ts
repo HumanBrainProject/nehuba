@@ -220,7 +220,7 @@ const export_nehuba = {
 //   throw new Error("Missing #neuroglancer-container element");
 // }
 
-// ; (window as any)['nehubaViewer'] = nehubaViewer = export_nehuba.createNehubaViewer(undefined, console.log)
+// ; (window as any)['nehubaViewer'] = export_nehuba.createNehubaViewer(undefined, console.log)
 // ;(window as any)['config'] = config
 
 // const imgsrc = "https://neuroglancer.humanbrainproject.eu/precomputed/BigBrainRelease.2015/8bit"

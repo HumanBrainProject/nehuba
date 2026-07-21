@@ -8,18 +8,26 @@ Notes from porting `NehubaLayout` (`src/nehuba/nehuba_layout.ts`) from the old n
 
 - [ ] **SWC worker backend.** The `swc://` data source
   (`src/nehuba/datasources/swc/`) is ported but frontend-only. Its
-  `SkeletonSource.download()` (`swc/backend.ts`) must run in the chunk worker,
-  but nehuba_v2 uses neuroglancer's *prebuilt* worker
-  (`lib/chunk_worker.bundle.js`, spawned by `DataManagementContext` with a
-  hardcoded URL), which has no hook for custom backend RPC classes. To finish:
-  (1) add a custom chunk-worker bundle entry that imports neuroglancer's worker
-  registrations plus `swc/backend.ts`, then (2) construct the `Viewer` with a
-  `DataManagementContext` (subclass/override) pointing at it — `NehubaViewer`
-  currently uses `makeDefaultViewer()`, which builds the default context
-  internally. Until then the `swc://` scheme resolves but skeletons won't load
-  (worker won't recognise `SWCSourceParameters.RPC_ID`). The `precompmesh://`
+  `SkeletonSource.download()` (`swc/backend.ts`) must run in the chunk worker.
+  **The custom-worker infrastructure this needed now exists** (added for
+  `nehuba-nifti`, see below): a custom worker entry `src/chunk_worker.custom.ts`
+  and `NehubaDataManagementContext` (`src/nehuba/nehuba_data_context.ts`), which
+  `NehubaViewer.create()` now uses instead of `makeDefaultViewer()`. To finish
+  SWC, just add `import "./nehuba/datasources/swc/backend";` to
+  `src/chunk_worker.custom.ts` (mirroring the `nehuba_nifti/backend` import
+  already there). Until then the `swc://` scheme resolves but skeletons won't
+  load (worker won't recognise `SWCSourceParameters.RPC_ID`). The `precompmesh://`
   source needs none of this — it reuses precomputed's mesh backend, already in
   the prebuilt worker.
+
+- [x] **Custom chunk-worker infrastructure + `nehuba-nifti` data source.**
+  `src/chunk_worker.custom.ts` mirrors neuroglancer's `chunk_worker.bundle.js`
+  (all standard backend registrations) plus nehuba's custom backends;
+  `NehubaDataManagementContext` spawns it; `NehubaViewer.create()` builds the
+  `Viewer` with that data context. The `nehuba-nifti://` source
+  (`src/nehuba/datasources/nehuba_nifti/`) extends upstream nifti: (1) defaults
+  unset `xyzt_units` to mm/sec, and (2) reads the whole array in the worker to
+  normalise every voxel into `uint8` between global min/max.
 
 - [ ] **Port `NehubaPerspectivePanel`.** Not transplanted yet, so the
   `layout.useNehubaPerspective` branch in `NehubaLayout` falls back to plain

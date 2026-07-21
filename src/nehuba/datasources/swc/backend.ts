@@ -1,16 +1,10 @@
 /**
  * Backend (chunk-worker) counterpart of the SWC skeleton source.
  *
- * ⚠️ NOT YET WIRED UP. This module registers a shared object that must run in
- * the chunk worker, but nehuba_v2 currently uses neuroglancer's *prebuilt*
- * chunk worker (`lib/chunk_worker.bundle.js`, spawned by
- * `DataManagementContext`), which has no hook for injecting custom backend RPC
- * classes. Until a custom worker bundle is set up (import neuroglancer's worker
- * registrations + this module, then construct the `Viewer` with a
- * `DataManagementContext` that points at it), the `swc://` data source will not
- * be able to load: the worker will not recognise the `SWCSourceParameters.RPC_ID`.
- *
- * See TODO.md ("SWC worker backend") for the remaining work.
+ * This module registers a shared object that runs in the chunk worker. It must
+ * be imported by the custom worker bundle (`src/chunk_worker.custom.ts`) so the
+ * worker recognises `SWCSourceParameters.RPC_ID`; otherwise the RPC to
+ * construct this source fails with "constructorFunction is not a constructor".
  */
 import { WithParameters } from "neuroglancer/unstable/chunk_manager/backend.js";
 import { WithSharedKvStoreContextCounterpart } from "neuroglancer/unstable/kvstore/backend.js";

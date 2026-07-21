@@ -26,3 +26,4 @@ import "./nehuba/datasources/blob_kvstore/blob_kvstore";
 
 // nehuba custom backends. These register additional RPC ids in this worker.
 import "./nehuba/datasources/nehuba_nifti/backend";
+import "./nehuba/datasources/swc/backend";
