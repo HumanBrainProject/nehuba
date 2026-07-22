@@ -83,6 +83,15 @@ export function getNehubaDefaultSliceViewPanelBindings() {
         action: "rotate-via-mouse-drag",
         stopPropagation: true,
       },
+      // Touch gestures (2D-map-like), overriding neuroglancer's defaults where
+      // they differ (upstream maps single-finger drag to z-translation):
+      //  - single-finger drag: in-plane translation (pan)
+      //  - two-finger drag: in-plane translation (pan) + in-plane rotation
+      //  - two-finger pinch: zoom
+      "at:touchtranslate1": "translate-in-plane-via-touchtranslate",
+      "at:touchtranslate2": "translate-in-plane-via-touchtranslate",
+      "at:touchrotate": "rotate-in-plane-via-touchrotate",
+      "at:touchpinch": "zoom-via-touchpinch",
     },
     {
       parents: [
@@ -100,6 +109,11 @@ export function getNehubaDefaultPerspectivePanelBindings() {
         action: "rotate-via-mouse-drag",
         stopPropagation: true,
       },
+      // Touch gestures for the 3D perspective view:
+      //  - single-finger drag: rotate (out-of-plane)
+      //  - two-finger pinch: zoom
+      "at:touchtranslate1": "rotate-out-of-plane-via-touchtranslate",
+      "at:touchpinch": "zoom-via-touchpinch",
     },
     {
       parents: [
