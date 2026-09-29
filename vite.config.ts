@@ -11,6 +11,26 @@ export default defineConfig({
       "neuroglancer/datasource/precomputed:enabled",
       "neuroglancer/datasource/nifti:enabled",
       "neuroglancer/datasource/zarr:enabled",
+      "neuroglancer/datasource/deepzoom:enabled",
+      "neuroglancer/datasource/n5:enabled",
+      // Available but not enabled. Uncomment to include (frontend + custom chunk
+      // worker + async are all gated by these conditions, so no other changes
+      // are needed). See docs: neuroglancer-master/src/datasource/<name>/.
+      //
+      // No external deps — standalone single-mesh loaders:
+      // "neuroglancer/datasource/obj:enabled",       // obj://  Wavefront OBJ mesh
+      // "neuroglancer/datasource/vtk:enabled",       // vtk://  VTK mesh
+      //
+      // Require a matching backend service to be useful:
+      // "neuroglancer/datasource/python:enabled",    // python://    neuroglancer Python integration
+      // "neuroglancer/datasource/render:enabled",    // render://    Janelia Render web service
+      // "neuroglancer/datasource/graphene:enabled",  // graphene://  PyChunkGraph segmentation
+      // "neuroglancer/datasource/nggraph:enabled",   // nggraph://   nggraph segmentation graph
+      //
+      // Auth-gated — also need credential providers + middleauth/ngauth kvstores:
+      // "neuroglancer/datasource/boss:enabled",      // boss://      bossDB (requires auth)
+      // "neuroglancer/datasource/dvid:enabled",      // dvid://      Janelia DVID (requires auth)
+      // "neuroglancer/datasource/brainmaps:enabled", // brainmaps:// Google Brain Maps API (internal)
     ],
   },
   esbuild: {
