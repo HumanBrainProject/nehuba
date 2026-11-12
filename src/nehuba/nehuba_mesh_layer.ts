@@ -127,11 +127,13 @@ if (uColor.a < 1.0) {
     if (!hideSlices.includes("slice3")) {
       meshOcclusionConds.push(`vNavPos.z >= 0.0`)
     }
-    if (meshOcclusionConds.length === 0) {
-      console.error(`meshOcclusionConds.length === 0. Did you set hideSlices correctly?`)
+    // do not render backmesh if:
+    // - no occlusion
+    // - silhouette enabled
+    if (meshOcclusionConds.length === 0 || silhouetteRenderingEnabled) {
       builder.setFragmentMain(`
 if (gl_FrontFacing) emit(vColor, uPickID);
-else emit(vBackFaceColor, uPickID);
+else discard;
       `)
       return
     }
