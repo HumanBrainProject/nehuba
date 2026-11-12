@@ -7,7 +7,7 @@ import { mat4, vec3, vec4, quat } from 'neuroglancer/unstable/util/geom.js';
 import { GL } from 'neuroglancer/unstable/webgl/context.js';
 import { ShaderBuilder, ShaderProgram } from 'neuroglancer/unstable/webgl/shader.js';
 import { parameterizedEmitterDependentShaderGetter } from 'neuroglancer/unstable/webgl/dynamic_shader.js';
-import { WatchableValue } from 'neuroglancer/unstable/trackable_value.js';
+import { WatchableValue, makeCachedDerivedWatchableValue } from 'neuroglancer/unstable/trackable_value.js';
 import { RefCounted } from 'neuroglancer/unstable/util/disposable.js';
 import { Uint64Set } from "neuroglancer/unstable/uint64_set.js"
 
@@ -32,13 +32,6 @@ highp vec3 decodeNormalOctahedronSnorm8(highp vec2 e) {
 }
 `;
 
-/**
- * Constant parameters watchable required by `parameterizedEmitterDependentShaderGetter`.
- * This layer has no dynamic shader parameters (e.g. silhouette rendering), so a single
- * constant value is sufficient.
- */
-
-
 export class NehubaMeshShaderManager extends MeshShaderManager {
   public hideSlicesWatchable = new WatchableValue<boolean>(false);
   constructor(
@@ -57,7 +50,7 @@ export class NehubaMeshShaderManager extends MeshShaderManager {
    * lighting) before adding the nehuba-specific clipping uniforms. It is wired up through
    * our own `makeGetter` override below.
    */
-  defineShader(builder: ShaderBuilder) {
+  defineShader(builder: ShaderBuilder, silhouetteRenderingEnabled = false) {
     // --- base MeshShaderManager setup (float32 vertex position format) ---
     builder.addAttribute('highp vec3', 'aVertexPosition');
     builder.addVertexCode('highp vec3 getVertexPosition() { return aVertexPosition; }');
@@ -68,6 +61,13 @@ export class NehubaMeshShaderManager extends MeshShaderManager {
     builder.addUniform('highp mat3', 'uNormalMatrix');
     builder.addUniform('highp mat4', 'uModelViewProjection');
     builder.addUniform('highp uint', 'uPickID');
+    // Silhouette rendering: the inherited `beginLayer` sets `uSilhouettePower` whenever
+    // `displayState.silhouetteRendering.value > 0`, so the uniform must be declared here
+    // (and the shader rebuilt via the parameters watchable in `makeGetter`) to match the
+    // base MeshShaderManager; otherwise setting it fails with "invalid uniform uSilhouettePower".
+    if (silhouetteRenderingEnabled) {
+      builder.addUniform('highp float', 'uSilhouettePower');
+    }
     builder.addVertexCode(glsl_decodeNormalOctahedronSnorm8);
 
     // --- nehuba-specific clipping additions ---
@@ -99,8 +99,16 @@ if (uOctant.w > 0.0) {
 gl_Position = uModelViewProjection * vec4(vertexPosition, 1.0);
 vec3 origNormal = decodeNormalOctahedronSnorm8(aVertexNormal);
 vec3 normal = normalize(uNormalMatrix * (normalMultiplier * origNormal));
-float lightingFactor = abs(dot(normal, uLightDirection.xyz)) + uLightDirection.w;
+float absCosAngle = abs(dot(normal, uLightDirection.xyz));
+float lightingFactor = absCosAngle + uLightDirection.w;
 vColor = vec4(lightingFactor * uColor.rgb, uColor.a);
+`;
+    if (silhouetteRenderingEnabled) {
+      vertexMain += `
+vColor *= pow(1.0 - absCosAngle, uSilhouettePower);
+`;
+    }
+    vertexMain += `
 if (uColor.a < 1.0) {
 	vBackFaceColor = vec4(vColor.rgb, 0.0);
 } else {
@@ -162,19 +170,33 @@ if (${meshOcclusionConds.join(" && ")}) {
   }
   /*
    * Overrides the base `makeGetter` so the emitter-dependent shader is built with our
-   * custom `defineShader` (adding the clipping uniforms) rather than the base one. The
-   * base implementation is otherwise identical; we drop the silhouette-rendering parameter
-   * since this layer doesn't use it.
+   * custom `defineShader` (adding the clipping uniforms) rather than the base one. We keep
+   * the base silhouette-rendering parameter so `uSilhouettePower` is declared when silhouette
+   * rendering is enabled, matching the inherited `beginLayer` which sets that uniform.
    */
   makeGetter(layer: RefCounted & { gl: GL; displayState: MeshDisplayState }) {
+    // Combine the hideSlices rebuild trigger with the silhouette-enabled flag so the shader
+    // is rebuilt (and `uSilhouettePower` (re)declared) whenever either changes.
+    const parameters = layer.registerDisposer(
+      makeCachedDerivedWatchableValue(
+        (hideSlicesToggle, silhouetteRendering) => ({
+          hideSlicesToggle,
+          silhouetteRenderingEnabled: silhouetteRendering > 0,
+        }),
+        [this.hideSlicesWatchable, layer.displayState.silhouetteRendering],
+      ),
+    );
+    // The base `makeGetter` is typed with `Parameters = boolean`; our richer parameters
+    // object makes the return type structurally incompatible. Callers (`draw`) only read
+    // `.shader` from the getter, so cast back to the base return type to satisfy the override.
     return parameterizedEmitterDependentShaderGetter(layer, layer.gl, {
       memoizeKey:
         `mesh/NehubaMeshShaderManager/${this.fragmentRelativeVertices}/${this.vertexPositionFormat}`,
-      parameters: this.hideSlicesWatchable,
-      defineShader: (builder) => {
-        this.defineShader(builder);
+      parameters,
+      defineShader: (builder, { silhouetteRenderingEnabled }) => {
+        this.defineShader(builder, silhouetteRenderingEnabled);
       },
-    });
+    }) as unknown as ReturnType<MeshShaderManager["makeGetter"]>;
   }
 }
 
