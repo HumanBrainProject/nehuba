@@ -2,6 +2,12 @@
 // The bare "neuroglancer" entry point exposes no named exports.
 import "neuroglancer";
 
+// Global/base styles (html, body { color: white; background: black; ... }).
+// Normally pulled in by neuroglancer's `setupDefaultViewer()`, but nehuba builds
+// its own Viewer, so without this the body text color defaults to black and
+// inherited-color labels (layer controls, tab names) become unreadable.
+import "neuroglancer/unstable/ui/default_viewer.css";
+
 // The public API lives under the "neuroglancer/unstable/*" subpath,
 // which the package's exports map resolves to its built `lib/*.js`.
 
@@ -162,7 +168,7 @@ const config: Config = {
       "useCustomSegmentColors": true
     },
     "zoomWithoutCtrl": true,
-    "hideNeuroglancerUI": true,
+    "hideNeuroglancerUI": false,
     "rightClickWithCtrl": true,
     "rotateAtViewCentre": true,
     "enableMeshLoadingControl": true,
